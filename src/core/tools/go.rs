@@ -53,7 +53,7 @@ pub fn fetch_versions(platform: &Platform) -> Result<Vec<String>> {
     parse_go_versions(&body, platform)
 }
 
-/// go 下载 URL：https://go.dev/dl/go<version>.<os>-<arch>.tar.gz
+/// go 下载 URL：阿里云镜像（国内加速）https://mirrors.aliyun.com/golang/go<version>.<os>-<arch>.tar.gz
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
     let os = match platform.os {
         crate::core::platform::Os::MacOs => "darwin",
@@ -64,7 +64,7 @@ pub fn resolve_url(version: &str, platform: &Platform) -> String {
         crate::core::platform::Arch::X86_64 => "amd64",
         crate::core::platform::Arch::Aarch64 => "arm64",
     };
-    format!("https://go.dev/dl/go{version}.{os}-{arch}.tar.gz")
+    format!("https://mirrors.aliyun.com/golang/go{version}.{os}-{arch}.tar.gz")
 }
 
 pub fn install(version_hint: Option<&str>) -> Result<()> {
@@ -142,7 +142,7 @@ mod tests {
     fn resolve_url_macos_arm64() {
         assert_eq!(
             resolve_url("1.22.6", &mac_arm()),
-            "https://go.dev/dl/go1.22.6.darwin-arm64.tar.gz"
+            "https://mirrors.aliyun.com/golang/go1.22.6.darwin-arm64.tar.gz"
         );
     }
 }
