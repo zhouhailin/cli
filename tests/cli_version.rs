@@ -22,6 +22,15 @@ fn version_flag_prints_version() {
 }
 
 #[test]
+fn no_args_prints_version_in_help() {
+    Command::cargo_bin("cli")
+        .unwrap()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("版本: 0.1.0"));
+}
+
+#[test]
 fn version_shows_platform_and_root() {
     let dir = tempfile::tempdir().unwrap();
     // 平台字符串与 Platform::detect 一致，按编译目标动态构造，避免绑定具体平台

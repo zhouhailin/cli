@@ -11,7 +11,12 @@ pub fn current_version() -> &'static str {
 }
 
 #[derive(Parser)]
-#[command(name = "cli", version = current_version(), about = "跨平台开发环境一键安装工具")]
+#[command(
+    name = "cli",
+    version = current_version(),
+    about = "跨平台开发环境一键安装工具",
+    help_template = "{about-with-newline}\n版本: {version}\n\n{usage-heading} {usage}\n\n{all-args}{after-help}"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
