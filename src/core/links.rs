@@ -39,6 +39,22 @@ pub fn set_current_link(link: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
+/// 移除 current 符号链接；不存在时返回 false，移除成功返回 true
+pub fn remove_link(link: &Path) -> Result<bool> {
+    let Ok(meta) = link.symlink_metadata() else {
+        return Ok(false);
+    };
+    #[cfg(windows)]
+    if meta.file_type().is_dir() {
+        std::fs::remove_dir(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+    } else {
+        std::fs::remove_file(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+    }
+    #[cfg(not(windows))]
+    std::fs::remove_file(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,5 +80,24 @@ mod tests {
         // 幂等：同目标不报错不变化
         set_current_link(&link, &t2).unwrap();
         assert_eq!(std::fs::read_link(&link).unwrap(), t2);
+    }
+
+    #[test]
+    fn remove_link_removes_existing_link() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("java21");
+        std::fs::create_dir_all(&target).unwrap();
+        let link = dir.path().join("current").join("java");
+        std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+        set_current_link(&link, &target).unwrap();
+        assert!(remove_link(&link).unwrap());
+        assert!(link.symlink_metadata().is_err());
+    }
+
+    #[test]
+    fn remove_link_noop_when_absent() {
+        let dir = tempdir().unwrap();
+        let link = dir.path().join("current").join("java");
+        assert!(!remove_link(&link).unwrap());
     }
 }
