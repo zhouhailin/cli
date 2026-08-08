@@ -6,3 +6,4 @@ pub mod paths;
 pub mod platform;
 pub mod shell;
 pub mod tools;
+pub mod versions;
