@@ -41,17 +41,24 @@ pub fn set_current_link(link: &Path, target: &Path) -> Result<()> {
 
 /// 移除 current 符号链接；不存在时返回 false，移除成功返回 true
 pub fn remove_link(link: &Path) -> Result<bool> {
-    let Ok(meta) = link.symlink_metadata() else {
-        return Ok(false);
-    };
-    #[cfg(windows)]
-    if meta.file_type().is_dir() {
-        std::fs::remove_dir(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
-    } else {
+    #[cfg(not(windows))]
+    {
+        if link.symlink_metadata().is_err() {
+            return Ok(false);
+        }
         std::fs::remove_file(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
     }
-    #[cfg(not(windows))]
-    std::fs::remove_file(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+    #[cfg(windows)]
+    {
+        let Ok(meta) = link.symlink_metadata() else {
+            return Ok(false);
+        };
+        if meta.file_type().is_dir() {
+            std::fs::remove_dir(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+        } else {
+            std::fs::remove_file(link).map_err(|e| anyhow!("删除符号链接失败: {e}"))?;
+        }
+    }
     Ok(true)
 }
 
