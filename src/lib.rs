@@ -35,6 +35,13 @@ pub enum Command {
         /// 目标版本（不填则交互选择）
         version: Option<String>,
     },
+    /// 卸载已安装的工具版本（无参数时交互选择）
+    Uninstall {
+        /// 工具名（不填则交互选择）
+        tool: Option<String>,
+        /// 版本（不填则交互选择或卸载唯一版本）
+        version: Option<String>,
+    },
     /// 自更新：检查并升级到 GitHub Releases 最新版
     SelfUpdate,
 }
@@ -45,6 +52,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::List => commands::list::run(),
         Command::Install { tool } => commands::install::run(tool),
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
+        Command::Uninstall { tool, version } => commands::uninstall::run(tool, version),
         Command::SelfUpdate => commands::self_update::run(),
     }
 }

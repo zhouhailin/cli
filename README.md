@@ -71,6 +71,15 @@ cli use java 21
 
 安装流程：下载（带重试）→ SHA-256 校验（毕昇）→ 解压 → 剥离单顶层目录 → 注册配置 → 注入 PATH。
 
+### `cli uninstall [tool] [version]`
+
+卸载已安装的工具版本：删除安装目录、配置注册、current 链接；该工具最后一个版本被卸载时，同时清理 shell 配置文件中的 PATH/JAVA_HOME 注入。
+
+- `cli uninstall java 17`：直接卸载指定版本
+- `cli uninstall java`：卸载 java（多版本时交互选择）
+- 无参数：交互选择工具和版本
+- 删除前会确认，取消则不动作；cache 中下载的压缩包保留
+
 ### `cli self-update`
 
 检查 GitHub Releases 最新版并自动替换自身二进制（Linux/macOS 原子替换，Windows 提示手动替换）：
