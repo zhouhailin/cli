@@ -23,6 +23,13 @@ pub enum Command {
         /// 工具名
         tool: String,
     },
+    /// 切换工具激活版本
+    Use {
+        /// 工具名
+        tool: String,
+        /// 目标版本（不填则交互选择）
+        version: Option<String>,
+    },
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -30,5 +37,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Version => commands::version::run(),
         Command::List => commands::list::run(),
         Command::Install { tool } => commands::install::run(tool),
+        Command::Use { tool, version } => commands::use_cmd::run(tool, version),
     }
 }
