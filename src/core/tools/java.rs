@@ -96,15 +96,31 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
             parse_liberica_download_url(&body)
         }
         "dragonwell" | "bisheng" | "kona" => {
-            let repo = match vendor {
-                "dragonwell" => "dragonwell-project/dragonwell21",
-                "bisheng" => "openeuler/bishengjdk-21",
-                _ => "Tencent/TencentKona-21",
-            };
+            // Dragonwell 官方仅发布 Linux/Windows 构建
+            if vendor == "dragonwell"
+                && matches!(platform.os, crate::core::platform::Os::MacOs)
+            {
+                return Err(anyhow!(
+                    "Dragonwell 不提供 macOS 构建，请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+                ));
+            }
+            let repo = github_repo(vendor, version)?;
             let api = format!("https://api.github.com/repos/{repo}/releases/latest");
-            let body = crate::core::download::http_get_string(&api)?;
+            let body = crate::core::download::http_get_string(&api).map_err(|e| {
+                anyhow!("获取 {vendor} 发行版信息失败（{e}），官方可能未发布该版本或渠道不可用")
+            })?;
             parse_github_release_url(&body, platform)
         }
+        _ => Err(anyhow!("不支持的发行版: {vendor}")),
+    }
+}
+
+/// GitHub 发行版仓库名（按版本动态选择，dragonwell8/11/17/21 等独立仓库）
+pub fn github_repo(vendor: &str, version: &str) -> Result<String> {
+    match vendor {
+        "dragonwell" => Ok(format!("dragonwell-project/dragonwell{version}")),
+        "bisheng" => Ok(format!("openeuler/bishengjdk-{version}")),
+        "kona" => Ok(format!("Tencent/TencentKona-{version}")),
         _ => Err(anyhow!("不支持的发行版: {vendor}")),
     }
 }
@@ -161,7 +177,9 @@ pub fn parse_github_release_url(json: &str, platform: &Platform) -> Result<Strin
         })
         .map(|(_, url)| url)
         .next()
-        .ok_or_else(|| anyhow!("未找到匹配 {platform} 的 JDK 下载资产"))
+        .ok_or_else(|| {
+            anyhow!("该发行版未提供 {platform} 的 JDK 构建，请选择其他发行版或版本")
+        })
 }
 
 /// 交互式安装：选发行版 → 选版本 → 下载安装 → JAVA_HOME/PATH 注入
@@ -305,7 +323,28 @@ mod tests {
             arch: crate::core::platform::Arch::Aarch64,
         };
         let err = parse_github_release_url(json, &p).unwrap_err();
-        assert!(err.to_string().contains("未找到匹配"));
+        assert!(err.to_string().contains("未提供 macos (aarch64)"));
+    }
+
+    #[test]
+    fn github_repo_maps_by_version() {
+        assert_eq!(
+            github_repo("dragonwell", "8").unwrap(),
+            "dragonwell-project/dragonwell8"
+        );
+        assert_eq!(github_repo("kona", "21").unwrap(), "Tencent/TencentKona-21");
+        assert_eq!(github_repo("bisheng", "17").unwrap(), "openeuler/bishengjdk-17");
+        assert!(github_repo("unknown", "8").is_err());
+    }
+
+    #[test]
+    fn resolve_url_rejects_dragonwell_on_macos() {
+        let p = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        let err = resolve_url("dragonwell", "21", &p).unwrap_err();
+        assert!(err.to_string().contains("不提供 macOS 构建"));
     }
 
     #[test]
