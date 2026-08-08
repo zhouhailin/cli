@@ -15,7 +15,7 @@
 - **下载自动重试**：网络失败自动退避重试 3 次
 - **跨平台**：macOS / Linux / Windows（x86_64 / aarch64）
 - **PATH 自动注入**：安装后自动写入 shell 配置文件（`.zshrc` / `.bashrc`）
-- **调试日志**：`CLI_DEBUG=true` 输出完整下载安装过程
+- **调试日志**：`CLI_DEBUG=true` 或 `DEVKIT_DEBUG=true` 输出完整下载安装过程
 
 ## 安装
 
@@ -101,10 +101,12 @@ cli use node         # 交互选择
 |------|------|
 | `DEVKIT_ROOT` | 自定义安装根目录（默认 `~/.devkit`），适合多环境隔离或 CI 测试 |
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
+| `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
 
 ```bash
 DEVKIT_ROOT=/data/devkit cli install java    # 安装到自定义目录
 CLI_DEBUG=true cli install node              # 观察完整下载过程
+DEVKIT_DEBUG=true cli install node            # 等价写法
 ```
 
 ## 目录结构
