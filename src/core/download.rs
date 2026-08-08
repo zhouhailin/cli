@@ -20,6 +20,18 @@ pub fn http_get_string_with_headers(url: &str, headers: &[(&str, &str)]) -> Resu
     Ok(body)
 }
 
+/// 进度行渲染：有总大小显示百分比，无总大小（chunked）仅显示字节
+fn format_progress(label: &str, done: u64, total: Option<u64>) -> String {
+    let mb = |b: u64| b as f64 / (1024.0 * 1024.0);
+    match total {
+        Some(t) if t > 0 => {
+            let pct = (done as f64 / t as f64 * 100.0).min(100.0) as u64;
+            format!("下载 {label}: {:.1}/{:.1} MB ({pct}%)", mb(done), mb(t))
+        }
+        _ => format!("下载 {label}: {:.1} MB", mb(done)),
+    }
+}
+
 pub fn download(url: &str, dest: &Path, expected_sha256: Option<&str>) -> Result<()> {
     let part = dest.with_extension("part");
     debug_log!("开始下载 {url} -> {}", dest.display());
@@ -152,6 +164,18 @@ mod tests {
             http_get_string(&format!("{base}/x")).unwrap(),
             "hello-world"
         );
+    }
+
+    #[test]
+    fn format_progress_with_total_shows_percent() {
+        let s = format_progress("java 21.0.5", 47 * 1024 * 1024, Some(100 * 1024 * 1024));
+        assert_eq!(s, "下载 java 21.0.5: 47.0/100.0 MB (47%)");
+    }
+
+    #[test]
+    fn format_progress_without_total_shows_bytes_only() {
+        let s = format_progress("cli 自更新", 5 * 1024 * 1024, None);
+        assert_eq!(s, "下载 cli 自更新: 5.0 MB");
     }
 
     #[test]
