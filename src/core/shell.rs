@@ -62,9 +62,9 @@ pub fn read_block(rc_file: &Path, marker: &str) -> Result<String> {
     Ok(String::new())
 }
 
-/// 在 devkit 块内注入 PATH 行，重复调用不产生重复行。
+/// 在 devkit 块内注入 PATH 行（POSIX 分隔符），重复调用不产生重复行。
 pub fn inject_path(rc_file: &Path, dir: &Path) -> Result<()> {
-    let line = format!("export PATH=\"{}$PATH\"", dir.display());
+    let line = format!("export PATH=\"{}:$PATH\"", dir.display());
     let current = read_block(rc_file, "devkit")?;
     let content = if current.is_empty() {
         line
@@ -158,7 +158,7 @@ mod tests {
         inject_path(&rc, &bin).unwrap();
         let text = std::fs::read_to_string(&rc).unwrap();
         assert_eq!(
-            text.matches(&format!("export PATH=\"{}$PATH\"", bin.display())).count(),
+            text.matches(&format!("export PATH=\"{}:$PATH\"", bin.display())).count(),
             1
         );
     }
