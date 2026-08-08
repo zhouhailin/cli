@@ -3,7 +3,16 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 
 pub fn http_get_string(url: &str) -> Result<String> {
-    let body = ureq::get(url).call()?.into_string()?;
+    http_get_string_with_headers(url, &[])
+}
+
+/// 带自定义请求头获取文本（部分官方 API 需要 Referer/UA 校验）
+pub fn http_get_string_with_headers(url: &str, headers: &[(&str, &str)]) -> Result<String> {
+    let mut request = ureq::get(url);
+    for (k, v) in headers {
+        request = request.set(k, v);
+    }
+    let body = request.call()?.into_string()?;
     Ok(body)
 }
 

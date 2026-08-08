@@ -25,7 +25,8 @@ pub fn vendors() -> Vec<Vendor> {
 pub fn available_versions(vendor: &Vendor) -> Vec<&'static str> {
     match vendor.name {
         "dragonwell" => vec!["8", "11", "17", "21", "25"],
-        "bisheng" | "temurin" | "zulu" | "liberica" => vec!["8", "11", "21"],
+        "bisheng" => vec!["8", "11", "17", "21"],
+        "temurin" | "zulu" | "liberica" => vec!["8", "11", "21"],
         "kona" => vec!["8", "11", "17", "21"],
         _ => vec![],
     }
@@ -97,7 +98,8 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
             parse_liberica_download_url(&body)
         }
         "dragonwell" => resolve_dragonwell_url("standard", version, platform),
-        "bisheng" | "kona" => {
+        "bisheng" => resolve_bisheng_url(version, platform),
+        "kona" => {
             let repo = github_repo(vendor, version)?;
             let api = format!("https://api.github.com/repos/{repo}/releases/latest");
             let body = crate::core::download::http_get_string(&api).map_err(|e| {
@@ -107,6 +109,94 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
         }
         _ => Err(anyhow!("不支持的发行版: {vendor}")),
     }
+}
+
+/// 毕昇 JDK 版本 → 鲲鹏下载页 code（JDK8/JDK11/JDK17/B0JDK21）
+pub fn bisheng_api_code(version: &str) -> Result<&'static str> {
+    match version {
+        "8" => Ok("JDK8"),
+        "11" => Ok("JDK11"),
+        "17" => Ok("JDK17"),
+        "21" => Ok("B0JDK21"),
+        _ => Err(anyhow!("毕昇 JDK 不支持的版本: {version}")),
+    }
+}
+
+/// 解析毕昇 JDK 下载信息页 JSON：过滤 JRE，按平台匹配 JDK 包直链
+pub fn parse_bisheng_download_url(json: &str, platform: &Platform) -> Result<String> {
+    if !matches!(platform.os, crate::core::platform::Os::Linux) {
+        return Err(anyhow!(
+            "毕昇 JDK 官方仅提供 Linux 构建（AArch64/x86_64），请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+        ));
+    }
+    #[derive(serde::Deserialize)]
+    struct Response {
+        data: Data,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SoftLink {
+        soft_name: String,
+        download_link: String,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Data {
+        soft_links: Vec<SoftLink>,
+    }
+    let parsed: Response =
+        serde_json::from_str(json).map_err(|e| anyhow!("解析毕昇 JDK 下载信息失败: {e}"))?;
+    let arch_key = match platform.arch {
+        crate::core::platform::Arch::X86_64 => "linux-x64",
+        crate::core::platform::Arch::Aarch64 => "linux-aarch64",
+    };
+    parsed
+        .data
+        .soft_links
+        .into_iter()
+        .filter(|l| l.soft_name.to_lowercase().contains("jdk"))
+        .filter(|l| !l.soft_name.to_lowercase().contains("jre"))
+        .filter(|l| l.soft_name.contains(arch_key))
+        .map(|l| l.download_link)
+        .next()
+        .ok_or_else(|| anyhow!("毕昇 JDK 未提供 {platform} 构建"))
+}
+
+/// 毕昇 JDK 下载 URL：鲲鹏官网下载信息页（需 Referer 校验），华为云镜像直链
+pub fn resolve_bisheng_url(version: &str, platform: &Platform) -> Result<String> {
+    if !matches!(platform.os, crate::core::platform::Os::Linux) {
+        return Err(anyhow!(
+            "毕昇 JDK 官方仅提供 Linux 构建（AArch64/x86_64），请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+        ));
+    }
+    let code = bisheng_api_code(version)?;
+    let api = format!(
+        "https://www.hikunpeng.com/kunpenggateway/kunpengservice/devkit/bsjdk/info/zh/{code}"
+    );
+    let body = crate::core::download::http_get_string_with_headers(
+        &api,
+        &[
+            ("Referer", "https://www.hikunpeng.com/"),
+            ("User-Agent", "Mozilla/5.0"),
+        ],
+    )
+    .map_err(|e| anyhow!("获取毕昇 JDK 发行版信息失败（{e}）"))?;
+    parse_bisheng_download_url(&body, platform)
+}
+
+/// 抓取毕昇 JDK 包的 SHA-256（华为云镜像提供 {url}.sha256）
+pub fn fetch_bisheng_sha256(url: &str) -> Result<String> {
+    let text = crate::core::download::http_get_string(&format!("{url}.sha256"))
+        .map_err(|e| anyhow!("获取毕昇 JDK SHA-256 失败（{e}）"))?;
+    parse_sha256_text(&text)
+}
+
+/// 从 sha256 文件文本提取 hash（格式: "<hash>  <文件名>"）
+pub fn parse_sha256_text(text: &str) -> Result<String> {
+    text.split_whitespace()
+        .next()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow!("SHA-256 文件格式无效"))
 }
 
 /// 解析 Dragonwell 官方 releases.json（https://dragonwell-jdk.io/releases.json）
@@ -198,7 +288,6 @@ pub fn resolve_dragonwell_url(
 /// GitHub 发行版仓库名（按版本动态选择，TencentKona-8/11/17/21 等独立仓库）
 pub fn github_repo(vendor: &str, version: &str) -> Result<String> {
     match vendor {
-        "bisheng" => Ok(format!("openeuler/bishengjdk-{version}")),
         "kona" => Ok(format!("Tencent/TencentKona-{version}")),
         _ => Err(anyhow!("不支持的发行版: {vendor}")),
     }
@@ -314,10 +403,20 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
         format!("{} Java {version}", vendor.label)
     };
     let platform = Platform::detect();
-    let url = if vendor.name == "dragonwell" {
-        resolve_dragonwell_url(variant, &version, &platform)?
+    let (url, sha256) = if vendor.name == "dragonwell" {
+        (resolve_dragonwell_url(variant, &version, &platform)?, None)
+    } else if vendor.name == "bisheng" {
+        let u = resolve_bisheng_url(&version, &platform)?;
+        let s = match fetch_bisheng_sha256(&u) {
+            Ok(h) => Some(h),
+            Err(e) => {
+                eprintln!("警告: {e}，将跳过 SHA-256 校验");
+                None
+            }
+        };
+        (u, s)
     } else {
-        resolve_url(vendor.name, &version, &platform)?
+        (resolve_url(vendor.name, &version, &platform)?, None)
     };
     println!("准备安装 {desc}...");
     println!("下载地址: {url}");
@@ -326,7 +425,7 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
         return Ok(());
     }
     let mut ctx = InstallContext::load()?;
-    install_archive(&url, None, "java", &version, &mut ctx, false)?;
+    install_archive(&url, sha256.as_deref(), "java", &version, &mut ctx, false)?;
     // JAVA_HOME 注入（指向 current 链）
     let rc_file = rc_file_for_shell()?;
     let home = std::env::var("HOME").unwrap_or_default();
@@ -437,7 +536,7 @@ mod tests {
     #[test]
     fn github_repo_maps_by_version() {
         assert_eq!(github_repo("kona", "21").unwrap(), "Tencent/TencentKona-21");
-        assert_eq!(github_repo("bisheng", "17").unwrap(), "openeuler/bishengjdk-17");
+        assert!(github_repo("bisheng", "17").is_err());
         assert!(github_repo("dragonwell", "8").is_err());
         assert!(github_repo("unknown", "8").is_err());
     }
@@ -482,6 +581,98 @@ mod tests {
     fn available_versions_dragonwell_five_versions() {
         let dw = vendors().into_iter().find(|v| v.name == "dragonwell").unwrap();
         assert_eq!(available_versions(&dw), vec!["8", "11", "17", "21", "25"]);
+    }
+
+    #[test]
+    fn available_versions_bisheng_four_versions() {
+        let bs = vendors().into_iter().find(|v| v.name == "bisheng").unwrap();
+        assert_eq!(available_versions(&bs), vec!["8", "11", "17", "21"]);
+    }
+
+    #[test]
+    fn bisheng_api_code_maps_versions() {
+        assert_eq!(bisheng_api_code("8").unwrap(), "JDK8");
+        assert_eq!(bisheng_api_code("11").unwrap(), "JDK11");
+        assert_eq!(bisheng_api_code("17").unwrap(), "JDK17");
+        assert_eq!(bisheng_api_code("21").unwrap(), "B0JDK21");
+        assert!(bisheng_api_code("25").is_err());
+    }
+
+    const BISHENG_SAMPLE: &str = r#"{
+      "data": {
+        "softLinks": [
+          {"softName": "bisheng-jre-8u492-b13-linux-aarch64.tar.gz", "downloadLink": "https://mirrors.huaweicloud.com/kunpeng/archive/compiler/bisheng_jdk/bisheng-jre-8u492-b13-linux-aarch64.tar.gz"},
+          {"softName": "bisheng-jdk-8u492-b13-linux-aarch64.tar.gz", "downloadLink": "https://mirrors.huaweicloud.com/kunpeng/archive/compiler/bisheng_jdk/bisheng-jdk-8u492-b13-linux-aarch64.tar.gz"},
+          {"softName": "bisheng-jdk-8u492-b13-linux-x64.tar.gz", "downloadLink": "https://mirrors.huaweicloud.com/kunpeng/archive/compiler/bisheng_jdk/bisheng-jdk-8u492-b13-linux-x64.tar.gz"}
+        ]
+      }
+    }"#;
+
+    #[test]
+    fn parse_bisheng_download_url_extracts_linux_aarch64() {
+        let p = Platform {
+            os: crate::core::platform::Os::Linux,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        // JRE 包被过滤，命中 aarch64 JDK 直链
+        assert_eq!(
+            parse_bisheng_download_url(BISHENG_SAMPLE, &p).unwrap(),
+            "https://mirrors.huaweicloud.com/kunpeng/archive/compiler/bisheng_jdk/bisheng-jdk-8u492-b13-linux-aarch64.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_bisheng_download_url_linux_x64() {
+        let p = Platform {
+            os: crate::core::platform::Os::Linux,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        assert_eq!(
+            parse_bisheng_download_url(BISHENG_SAMPLE, &p).unwrap(),
+            "https://mirrors.huaweicloud.com/kunpeng/archive/compiler/bisheng_jdk/bisheng-jdk-8u492-b13-linux-x64.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_bisheng_download_url_rejects_non_linux() {
+        let p = Platform {
+            os: crate::core::platform::Os::Windows,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        let err = parse_bisheng_download_url(BISHENG_SAMPLE, &p).unwrap_err();
+        assert!(err.to_string().contains("仅提供 Linux 构建"));
+    }
+
+    #[test]
+    fn resolve_bisheng_url_rejects_macos() {
+        let p = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        let err = resolve_bisheng_url("21", &p).unwrap_err();
+        assert!(err.to_string().contains("仅提供 Linux 构建"));
+    }
+
+    #[test]
+    fn resolve_bisheng_url_rejects_windows() {
+        let p = Platform {
+            os: crate::core::platform::Os::Windows,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        let err = resolve_bisheng_url("17", &p).unwrap_err();
+        assert!(err.to_string().contains("仅提供 Linux 构建"));
+    }
+
+    #[test]
+    fn parse_sha256_text_parses_hash() {
+        assert_eq!(
+            parse_sha256_text(
+                "aabbccddeeff00112233445566778899  bisheng-jdk-8u492-b13-linux-aarch64.tar.gz"
+            )
+            .unwrap(),
+            "aabbccddeeff00112233445566778899"
+        );
+        assert!(parse_sha256_text("").is_err());
     }
 
     const DRAGONWELL_SAMPLE: &str = r#"{
@@ -590,4 +781,5 @@ mod tests {
         assert!(err.to_string().contains("不支持的 Dragonwell 变体"));
     }
 }
+
 
