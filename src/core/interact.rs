@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 
-/// stdin 是否为交互式终端
+/// stdin 与 stderr 均为终端时才视为交互式（dialoguer 基于 stderr 渲染）
 pub fn is_interactive() -> bool {
     use std::io::IsTerminal;
-    std::io::stdin().is_terminal()
+    std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
 }
 
 /// 单选列表，返回选中项下标；非 TTY 或取消时返回中文错误
