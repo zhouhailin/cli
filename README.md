@@ -41,7 +41,7 @@ sudo mv cli-macos-arm64 /usr/local/bin/cli
 ## 快速开始
 
 ```bash
-# 不带参数：弹出工具列表交互选择（Java / Node.js / Go / Maven / 自更新）
+# 不带参数：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / 自更新）
 cli install
 
 # 交互式安装 Java（选择发行版与版本）
@@ -63,11 +63,11 @@ cli use java 21
 
 ### `cli install [tool]`
 
-交互式安装工具，支持：`java`、`node`、`go`、`maven`。
+交互式安装工具，支持：`java`、`node`、`go`、`maven`、`mvnd`。
 
-- **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
+- **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
 - **java**：先选择 JDK 发行版，再选择大版本（8/11/17/21/25 视发行版而定），下载时实时解析最新补丁版本
-- **node / go / maven**：从官方 API 拉取版本列表交互选择
+- **node / go / maven / mvnd**：从官方 API 拉取版本列表交互选择
 
 安装流程：下载（带重试）→ SHA-256 校验（毕昇）→ 解压 → 剥离单顶层目录 → 注册配置 → 注入 PATH。
 
