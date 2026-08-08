@@ -1,3 +1,4 @@
+use std::io::{IsTerminal, Read, Write};
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
@@ -32,18 +33,38 @@ fn format_progress(label: &str, done: u64, total: Option<u64>) -> String {
     }
 }
 
-pub fn download(url: &str, dest: &Path, expected_sha256: Option<&str>) -> Result<()> {
+pub fn download(url: &str, dest: &Path, expected_sha256: Option<&str>, label: &str) -> Result<()> {
     let part = dest.with_extension("part");
     debug_log!("开始下载 {url} -> {}", dest.display());
+    // 仅 TTY 显示进度；管道/CI/重定向静默
+    let show_progress = std::io::stderr().is_terminal();
     let mut last_err: Option<String> = None;
     for attempt in 0..3 {
         match ureq::get(url).call() {
             Ok(resp) => {
+                let total = resp
+                    .header("Content-Length")
+                    .and_then(|v| v.parse::<u64>().ok());
                 let mut reader = resp.into_reader();
                 let mut file = std::fs::File::create(&part)?;
-                let copied = std::io::copy(&mut reader, &mut file)?;
+                let mut buf = [0u8; 64 * 1024];
+                let mut done: u64 = 0;
+                loop {
+                    let n = reader.read(&mut buf)?;
+                    if n == 0 {
+                        break;
+                    }
+                    file.write_all(&buf[..n])?;
+                    done += n as u64;
+                    if show_progress {
+                        eprint!("\r{}", format_progress(label, done, total));
+                    }
+                }
                 drop(file);
-                debug_log!("下载完成: {} 字节（第 {}/3 次尝试）", copied, attempt + 1);
+                if show_progress {
+                    eprint!("\r\x1b[K"); // 清行，避免残留半行
+                }
+                debug_log!("下载完成: {} 字节（第 {}/3 次尝试）", done, attempt + 1);
                 if let Some(expected) = expected_sha256 {
                     debug_log!("校验 SHA-256: 期望 {expected}");
                     verify_sha256(&part, expected)?;
@@ -103,8 +124,6 @@ pub fn extract_archive(archive: &Path, dest_dir: &Path) -> Result<()> {
 }
 
 // ---- 测试辅助：本地 mock HTTP 服务 ----
-#[cfg(test)]
-use std::io::{Read, Write};
 #[cfg(test)]
 use std::net::TcpListener;
 
@@ -183,7 +202,7 @@ mod tests {
         let base = mock_server(vec![(200, "binary-data".to_string())]);
         let dir = tempdir().unwrap();
         let dest = dir.path().join("out.bin");
-        download(&format!("{base}/f"), &dest, None).unwrap();
+        download(&format!("{base}/f"), &dest, None, "test").unwrap();
         assert_eq!(std::fs::read_to_string(&dest).unwrap(), "binary-data");
     }
 
@@ -192,7 +211,7 @@ mod tests {
         let base = mock_server(vec![(500, "err".to_string()), (200, "ok".to_string())]);
         let dir = tempdir().unwrap();
         let dest = dir.path().join("out.bin");
-        download(&format!("{base}/f"), &dest, None).unwrap();
+        download(&format!("{base}/f"), &dest, None, "test").unwrap();
         assert_eq!(std::fs::read_to_string(&dest).unwrap(), "ok");
     }
 
@@ -205,6 +224,7 @@ mod tests {
             &format!("{base}/f"),
             &dest,
             Some("0000000000000000000000000000000000000000000000000000000000000000"),
+            "test",
         )
         .unwrap_err();
         assert!(err.to_string().contains("SHA-256 校验失败"));

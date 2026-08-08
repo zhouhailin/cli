@@ -62,7 +62,7 @@ pub fn run() -> Result<()> {
     println!("下载地址: {url}");
     let exe = std::env::current_exe()?;
     let staging = exe.with_extension("update");
-    download(&url, &staging, None)?;
+    download(&url, &staging, None, "cli 自更新")?;
     // Unix 直接原子替换；Windows 运行中 exe 被锁，提示手动替换
     #[cfg(not(windows))]
     {

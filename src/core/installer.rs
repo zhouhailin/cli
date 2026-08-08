@@ -50,7 +50,7 @@ pub fn install_archive(
     let archive_path = cache_dir.join(archive_name);
     debug_log!("安装 {tool} {version}: 归档文件 {}", archive_path.display());
     // 下载（内部带重试 + 校验 + 原子 rename）
-    download(url, &archive_path, sha256)?;
+    download(url, &archive_path, sha256, &format!("{tool} {version}"))?;
     // 解压到工具目录（若目录已存在则跳过已安装检测交由上层）
     extract_archive(&archive_path, &tool_dir)?;
     // 剥离单顶层目录（node-v22.12.0/、apache-maven-3.9.9/ 等），使 bin/conf 直接位于 tool_dir 下
