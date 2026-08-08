@@ -122,7 +122,7 @@ cli use node         # 交互选择
 
 | 变量 | 说明 |
 |------|------|
-| `DEVKIT_ROOT` | 自定义安装根目录（默认 `~/.devkit`），适合多环境隔离或 CI 测试 |
+| `DEVKIT_ROOT` | 自定义安装根目录（默认 Linux `/opt/.devkit`，macOS/Windows `~/.devkit`），适合多环境隔离或 CI 测试 |
 | `DEVKIT_CACHE_DIR` | 压缩包缓存目录（默认 `<根目录>/cache`），便于离线分发 |
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
 | `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
@@ -136,12 +136,14 @@ DEVKIT_DEBUG=true cli install node            # 等价写法
 ## 目录结构
 
 ```
-~/.devkit/
+~/.devkit/            # macOS / Windows 默认；Linux 默认为 /opt/.devkit
 ├── config.json          # 已安装工具与激活版本记录
 ├── cache/               # 下载的归档文件
 ├── <tool>/<version>/    # 各工具安装目录
 └── current/<tool>/      # 指向当前激活版本的软链（PATH 注入点）
 ```
+
+> Linux 默认安装根目录为 `/opt/.devkit`：原有 `~/.devkit` 数据可通过 `DEVKIT_ROOT=$HOME/.devkit` 继续访问，或自行迁移（如 `sudo mv ~/.devkit /opt/.devkit`）。普通用户无 `/opt` 写权限时，请使用 `sudo` 运行或设置 `DEVKIT_ROOT`。
 
 ## 从源码构建
 
