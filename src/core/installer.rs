@@ -70,6 +70,7 @@ pub fn install_archive(
         let link = ctx.paths.current_link(tool);
         inject_path(&rc_file, &link.join("bin"))?;
         debug_log!("已注入 PATH: {}", rc_file.display());
+        crate::core::shell::print_activation_hint()?;
     }
     Ok(())
 }

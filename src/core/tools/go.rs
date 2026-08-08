@@ -102,6 +102,7 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
     }
     let rc_file = rc_file_for_shell()?;
     inject_path(&rc_file, &ctx.paths.current_link("go").join("bin"))?;
+    crate::core::shell::print_activation_hint()?;
     println!("Go {version} 安装完成");
     Ok(())
 }

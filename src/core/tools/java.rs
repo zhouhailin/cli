@@ -450,6 +450,7 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
     };
     inject_env_var(&rc_file, "JAVA_HOME", &java_home)?;
     inject_path(&rc_file, &ctx.paths.current_link("java").join("bin"))?;
+    crate::core::shell::print_activation_hint()?;
     println!("Java {version}（{}）安装完成", vendor.label);
     Ok(())
 }

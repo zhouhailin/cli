@@ -91,6 +91,7 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
     std::fs::write(tool_dir.join("conf").join("settings.xml"), settings)?;
     let rc_file = crate::core::shell::rc_file_for_shell()?;
     crate::core::shell::inject_path(&rc_file, &ctx.paths.current_link("maven").join("bin"))?;
+    crate::core::shell::print_activation_hint()?;
     println!("Maven {version} 安装完成（已配置阿里云镜像与本地仓库）");
     Ok(())
 }

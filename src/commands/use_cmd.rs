@@ -36,6 +36,6 @@ pub fn run(tool: String, version: Option<String>) -> Result<()> {
     config.set_active(&tool, &version);
     config.save(&paths)?;
     println!("已切换到 {tool} {version}");
-    println!("提示: 新终端或 source 当前 shell 配置文件后生效");
+    crate::core::shell::print_activation_hint()?;
     Ok(())
 }

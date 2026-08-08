@@ -108,6 +108,7 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
     install_archive(&url, None, "node", &version, &mut ctx, false)?;
     let rc_file = rc_file_for_shell()?;
     inject_path(&rc_file, &ctx.paths.current_link("node").join("bin"))?;
+    crate::core::shell::print_activation_hint()?;
     println!("Node.js {version} 安装完成");
     Ok(())
 }

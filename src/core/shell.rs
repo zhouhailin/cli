@@ -165,6 +165,20 @@ pub fn remove_tool_injections(rc_file: &Path, tool: &str) -> Result<bool> {
     Ok(true)
 }
 
+/// 打印激活提示：新终端或执行 source 当前 shell 配置文件后生效
+pub fn print_activation_hint() -> Result<()> {
+    match rc_file_for_shell() {
+        Ok(rc) => {
+            println!("提示: 新终端或执行 source {} 后生效", rc.display());
+            Ok(())
+        }
+        Err(e) => {
+            println!("提示: 新终端后生效（{e}）");
+            Ok(())
+        }
+    }
+}
+
 /// 根据 $SHELL 检测 rc 文件路径。Windows 暂不支持。
 pub fn rc_file_for_shell() -> Result<PathBuf> {
     #[cfg(windows)]
