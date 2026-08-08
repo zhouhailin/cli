@@ -156,14 +156,14 @@ pub fn parse_version_dirs(html: &str) -> Result<Vec<String>>
 
 ### 5.2 mvnd 模块
 
-- 版本源：`https://archive.apache.org/dist/maven/mvnd/` 目录页 → `parse_version_dirs`
+- 版本源：`https://mirrors.aliyun.com/apache/maven/mvnd/` 目录页 → `parse_version_dirs`（镜像未同步 .sha256，校验文件仍从 archive 获取）
 - URL（平台映射，mvnd 用 amd64/aarch64 命名）：
 
 ```rust
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
     let os = match platform.os { Os::MacOs => "darwin", Os::Linux => "linux", Os::Windows => "windows" };
     let arch = match platform.arch { Arch::X86_64 => "amd64", Arch::Aarch64 => "aarch64" };
-    format!("https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz")
+    format!("https://mirrors.aliyun.com/apache/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz")
 }
 ```
 

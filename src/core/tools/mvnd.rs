@@ -5,8 +5,22 @@ use crate::core::installer::{install_archive, InstallContext};
 use crate::core::interact::{confirm, select};
 use crate::core::platform::Platform;
 
-/// mvnd 版本列表页（archive 目录页，仅纯数字稳定版）
-const VERSIONS_URL: &str = "https://archive.apache.org/dist/maven/mvnd/";
+/// mvnd 版本列表页（阿里云镜像，仅纯数字稳定版）
+const VERSIONS_URL: &str = "https://mirrors.aliyun.com/apache/maven/mvnd/";
+
+/// 平台 → (os, arch) 资产段映射（与 mvnd 资产命名一致：darwin/linux/windows + amd64/aarch64）
+fn os_arch(platform: &Platform) -> (&'static str, &'static str) {
+    let os = match platform.os {
+        crate::core::platform::Os::MacOs => "darwin",
+        crate::core::platform::Os::Linux => "linux",
+        crate::core::platform::Os::Windows => "windows",
+    };
+    let arch = match platform.arch {
+        crate::core::platform::Arch::X86_64 => "amd64",
+        crate::core::platform::Arch::Aarch64 => "aarch64",
+    };
+    (os, arch)
+}
 
 pub fn install(version_hint: Option<&str>) -> Result<()> {
     let platform = Platform::detect();
@@ -26,8 +40,8 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
         list[idx].clone()
     };
     let url = resolve_url(&version, &platform);
-    // archive 提供 .sha256 侧车文件，先取哈希再下载校验
-    let sha_text = http_get_string(&format!("{url}.sha256"))?;
+    // 阿里云镜像未同步 .sha256 校验文件，校验文件仍从 archive 获取（小文件，保留完整性校验）
+    let sha_text = http_get_string(&sha256_url(&version, &platform))?;
     let sha = parse_sha256_text(&sha_text)?;
     println!("准备安装 mvnd {version}...");
     println!("下载地址: {url}");
@@ -52,19 +66,19 @@ pub fn parse_sha256_text(text: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("无法从校验和文本解析 SHA-256: {text:?}"))
 }
 
-/// mvnd 下载 URL（archive 资产命名：maven-mvnd-<ver>-<os>-<arch>.tar.gz，直接位于版本目录根）
+/// mvnd 下载 URL（阿里云镜像，国内加速；资产命名：maven-mvnd-<ver>-<os>-<arch>.tar.gz，直接位于版本目录根）
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
-    let os = match platform.os {
-        crate::core::platform::Os::MacOs => "darwin",
-        crate::core::platform::Os::Linux => "linux",
-        crate::core::platform::Os::Windows => "windows",
-    };
-    let arch = match platform.arch {
-        crate::core::platform::Arch::X86_64 => "amd64",
-        crate::core::platform::Arch::Aarch64 => "aarch64",
-    };
+    let (os, arch) = os_arch(platform);
     format!(
-        "https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
+        "https://mirrors.aliyun.com/apache/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
+    )
+}
+
+/// mvnd SHA-256 校验文件 URL（阿里云镜像未同步校验文件，从 archive 获取）
+pub fn sha256_url(version: &str, platform: &Platform) -> String {
+    let (os, arch) = os_arch(platform);
+    format!(
+        "https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz.sha256"
     )
 }
 
@@ -91,7 +105,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &linux_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
         );
         let mac_arm = Platform {
             os: Os::MacOs,
@@ -99,7 +113,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &mac_arm),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
         );
         let win_x64 = Platform {
             os: Os::Windows,
@@ -107,7 +121,20 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &win_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
+        );
+    }
+
+    #[test]
+    fn sha256_url_uses_archive_for_checksum() {
+        // 阿里云镜像未同步 .sha256 校验文件，校验文件仍从 archive 获取
+        let linux_x64 = Platform {
+            os: Os::Linux,
+            arch: Arch::X86_64,
+        };
+        assert_eq!(
+            sha256_url("1.0.6", &linux_x64),
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz.sha256"
         );
     }
 }

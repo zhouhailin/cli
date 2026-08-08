@@ -568,7 +568,7 @@ pub fn resolve_url(version: &str, platform: &Platform) -> String {
         crate::core::platform::Arch::Aarch64 => "aarch64",
     };
     format!(
-        "https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
+        "https://mirrors.aliyun.com/apache/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
     )
 }
 
@@ -592,17 +592,17 @@ mod tests {
         let linux_x64 = Platform { os: Os::Linux, arch: Arch::X86_64 };
         assert_eq!(
             resolve_url("1.0.6", &linux_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
         );
         let mac_arm = Platform { os: Os::MacOs, arch: Arch::Aarch64 };
         assert_eq!(
             resolve_url("1.0.6", &mac_arm),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
         );
         let win_x64 = Platform { os: Os::Windows, arch: Arch::X86_64 };
         assert_eq!(
             resolve_url("1.0.6", &win_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
+            "https://mirrors.aliyun.com/apache/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
         );
     }
 }
@@ -626,7 +626,7 @@ use crate::core::interact::{confirm, select};
 
 pub fn install(version_hint: Option<&str>) -> Result<()> {
     let platform = Platform::detect();
-    let body = http_get_string("https://archive.apache.org/dist/maven/mvnd/")?;
+    let body = http_get_string("https://mirrors.aliyun.com/apache/maven/mvnd/")?;
     let list = crate::core::versions::parse_version_dirs(&body)?;
     let version = if let Some(hint) = version_hint {
         if !list.contains(&hint.to_string()) {

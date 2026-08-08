@@ -40,7 +40,10 @@ pub fn parse_version_dirs(html: &str) -> Result<Vec<String>> {
         };
         let href = &after[..end];
         if let Some(dir) = href.strip_suffix('/') {
-            if !dir.is_empty() && dir.chars().all(|c| c.is_ascii_digit() || c == '.') {
+            // 纯数字点分目录；要求至少含一个数字，过滤 ../ 等纯点目录
+            if dir.chars().all(|c| c.is_ascii_digit() || c == '.')
+                && dir.chars().any(|c| c.is_ascii_digit())
+            {
                 versions.push(dir.to_string());
             }
         }
@@ -94,5 +97,16 @@ mod tests {
     #[test]
     fn parse_version_dirs_rejects_empty() {
         assert!(parse_version_dirs("<html>no links</html>").is_err());
+    }
+
+    #[test]
+    fn parse_version_dirs_ignores_dot_dirs() {
+        // 镜像站列表页含 ../ 父目录链接（纯点目录），必须过滤
+        let html = r#"<html><body>
+          <a href="../">../</a>
+          <a href="1.0.6/">1.0.6/</a>
+        </body></html>"#;
+        let list = parse_version_dirs(html).unwrap();
+        assert_eq!(list, vec!["1.0.6"]);
     }
 }
