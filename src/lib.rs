@@ -18,11 +18,17 @@ pub enum Command {
     Version,
     /// 列出已安装的工具与版本
     List,
+    /// 交互式安装开发工具（java/node/go/maven/redis/mysql）
+    Install {
+        /// 工具名
+        tool: String,
+    },
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Version => commands::version::run(),
         Command::List => commands::list::run(),
+        Command::Install { tool } => commands::install::run(tool),
     }
 }
