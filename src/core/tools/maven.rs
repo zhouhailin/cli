@@ -6,26 +6,7 @@ use crate::core::interact::{confirm, select};
 
 /// 从 Apache archive 目录页 HTML 提取版本号（纯数字点分），降序
 pub fn parse_maven_versions(html: &str) -> Result<Vec<String>> {
-    let mut versions: Vec<String> = Vec::new();
-    let mut rest = html;
-    while let Some(start) = rest.find(r#"<a href=""#) {
-        let after = &rest[start + 9..];
-        let Some(end) = after.find(r#"">"#) else {
-            break;
-        };
-        let href = &after[..end];
-        if let Some(dir) = href.strip_suffix('/') {
-            if !dir.is_empty() && dir.chars().all(|c| c.is_ascii_digit() || c == '.') {
-                versions.push(dir.to_string());
-            }
-        }
-        rest = &after[end..];
-    }
-    if versions.is_empty() {
-        return Err(anyhow!("未从 Maven 版本目录页解析到任何版本"));
-    }
-    versions.sort_by(|a, b| compare_versions(b, a));
-    Ok(versions)
+    crate::core::versions::parse_version_dirs(html)
 }
 
 /// 版本号比较（点分段数字），复用 core::versions
