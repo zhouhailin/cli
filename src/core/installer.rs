@@ -25,7 +25,7 @@ impl InstallContext {
     }
 }
 
-/// 统一安装流程：下载 → 校验 → 解压 → 剥离单顶层目录 → 注册 → 注入环境
+/// 统一安装流程：检查已安装 → 下载 → 校验 → 解压 → 剥离单顶层目录 → 注册 → 注入环境
 pub fn install_archive(
     url: &str,
     sha256: Option<&str>,
@@ -34,6 +34,11 @@ pub fn install_archive(
     ctx: &mut InstallContext,
     inject: bool,
 ) -> Result<()> {
+    // 先检查已安装，避免白白下载
+    let tool_dir = ctx.paths.tool_dir(tool, version);
+    if tool_dir.exists() {
+        return Err(anyhow!("{tool} {version} 已安装，请先卸载或使用其他版本"));
+    }
     let cache_dir = ctx.paths.root().join("cache");
     std::fs::create_dir_all(&cache_dir)?;
     let archive_name = url
@@ -46,10 +51,6 @@ pub fn install_archive(
     // 下载（内部带重试 + 校验 + 原子 rename）
     download(url, &archive_path, sha256)?;
     // 解压到工具目录（若目录已存在则跳过已安装检测交由上层）
-    let tool_dir = ctx.paths.tool_dir(tool, version);
-    if tool_dir.exists() {
-        return Err(anyhow!("{tool} {version} 已安装，请先卸载或使用其他版本"));
-    }
     extract_archive(&archive_path, &tool_dir)?;
     // 剥离单顶层目录（node-v22.12.0/、apache-maven-3.9.9/ 等），使 bin/conf 直接位于 tool_dir 下
     flatten_single_top_dir(&tool_dir)?;
