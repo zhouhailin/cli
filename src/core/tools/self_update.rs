@@ -81,15 +81,31 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-/// Unix 原子替换：staging 权限对齐原 exe 后再替换
-/// （下载文件默认 0644，直接 rename 会丢失执行位导致更新后无法运行）
+/// Unix 原子替换：staging 权限继承原 exe；原 exe 无执行位或不可读时 0755 兜底，替换后自检补位
+/// （HTTP 下载默认 0644，直接 rename 会丢失执行位导致更新后无法运行）
 #[cfg(not(windows))]
 pub fn replace_binary(staging: &std::path::Path, exe: &std::path::Path) -> Result<()> {
-    if let Ok(meta) = std::fs::metadata(exe) {
-        std::fs::set_permissions(staging, meta.permissions())
-            .map_err(|e| anyhow!("设置临时文件权限失败: {e}"))?;
-    }
+    use std::os::unix::fs::PermissionsExt;
+    let mode = match std::fs::metadata(exe) {
+        Ok(meta) => {
+            let bits = meta.permissions().mode() & 0o777;
+            if bits & 0o111 == 0 {
+                0o755
+            } else {
+                bits
+            }
+        }
+        Err(_) => 0o755,
+    };
+    std::fs::set_permissions(staging, std::fs::Permissions::from_mode(mode))
+        .map_err(|e| anyhow!("设置临时文件权限失败: {e}"))?;
     std::fs::rename(staging, exe).map_err(|e| anyhow!("替换二进制失败: {e}"))?;
+    // 替换后自检：仍无执行位则补（防御边界场景）
+    let after = std::fs::metadata(exe)?.permissions().mode() & 0o777;
+    if after & 0o111 == 0 {
+        std::fs::set_permissions(exe, std::fs::Permissions::from_mode(after | 0o111))?;
+    }
+    crate::debug_log!("更新后二进制权限: {mode:o}");
     Ok(())
 }
 
@@ -151,5 +167,20 @@ mod tests {
         replace_binary(&staging, &exe).unwrap();
         let mode = std::fs::metadata(&exe).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_binary_ensures_execute_when_original_missing_exec() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("cli");
+        let staging = dir.path().join("cli.update");
+        std::fs::write(&exe, b"old").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::write(&staging, b"new").unwrap();
+        std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o644)).unwrap();
+        replace_binary(&staging, &exe).unwrap();
+        let mode = std::fs::metadata(&exe).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755);
     }
 }

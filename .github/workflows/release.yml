@@ -78,6 +78,10 @@ jobs:
           else
             cp "target/${{ matrix.target }}/release/cli" "${{ matrix.asset }}"
           fi
+      # 非 Windows 产物设置执行位，保证下载后直接可执行（HTTP 下载默认 0644）
+      - name: 设置可执行权限
+        if: matrix.strip
+        run: chmod +x ${{ matrix.asset }}
       # Linux 产物在 Alpine(musl) 容器中冒烟验证：可执行且版本输出正常
       - name: Alpine 冒烟验证
         if: startsWith(matrix.target, 'x86_64-unknown-linux-musl') || startsWith(matrix.target, 'aarch64-unknown-linux-musl')
