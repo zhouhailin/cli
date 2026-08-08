@@ -22,10 +22,7 @@ pub enum Command {
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
-        Command::Version => {
-            println!("cli {VERSION}");
-            Ok(())
-        }
+        Command::Version => commands::version::run(),
         Command::List => commands::list::run(),
     }
 }
