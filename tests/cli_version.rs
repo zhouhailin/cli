@@ -24,12 +24,25 @@ fn version_flag_prints_version() {
 #[test]
 fn version_shows_platform_and_root() {
     let dir = tempfile::tempdir().unwrap();
+    // 平台字符串与 Platform::detect 一致，按编译目标动态构造，避免绑定具体平台
+    let os = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "windows"
+    };
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else {
+        "aarch64"
+    };
     Command::cargo_bin("cli")
         .unwrap()
         .env("DEVKIT_ROOT", dir.path())
         .arg("version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("平台: macos"))
+        .stdout(predicate::str::contains(format!("平台: {os} ({arch})")))
         .stdout(predicate::str::contains(dir.path().to_str().unwrap()));
 }
