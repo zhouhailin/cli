@@ -20,6 +20,13 @@ fn parse_segment(s: &str) -> Option<u64> {
     s.parse().ok()
 }
 
+/// 去除版本号前缀 v/V（v0.1.1 -> 0.1.1），无前缀原样返回
+pub fn parse_tag(tag: &str) -> &str {
+    tag.strip_prefix('v')
+        .or_else(|| tag.strip_prefix('V'))
+        .unwrap_or(tag)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -35,5 +42,13 @@ mod tests {
     fn compare_handles_v_prefix_and_padding() {
         assert_eq!(compare("v22.12.0", "v22.9.0"), Ordering::Greater);
         assert_eq!(compare("1.22.6", "1.21.13"), Ordering::Greater);
+    }
+
+    #[test]
+    fn parse_tag_strips_v_prefix() {
+        assert_eq!(parse_tag("v0.1.1"), "0.1.1");
+        assert_eq!(parse_tag("V1.2.3"), "1.2.3");
+        assert_eq!(parse_tag("0.1.1"), "0.1.1");
+        assert_eq!(parse_tag(""), "");
     }
 }

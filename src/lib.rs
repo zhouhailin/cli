@@ -3,10 +3,15 @@ pub mod core;
 
 use clap::{Parser, Subcommand};
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+use crate::core::versions::parse_tag;
+
+/// 当前版本：发布构建用 CLI_VERSION（tag），本地开发回退 Cargo.toml 版本
+pub fn current_version() -> &'static str {
+    parse_tag(option_env!("CLI_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")))
+}
 
 #[derive(Parser)]
-#[command(name = "cli", version = VERSION, about = "跨平台开发环境一键安装工具")]
+#[command(name = "cli", version = current_version(), about = "跨平台开发环境一键安装工具")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
