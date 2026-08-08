@@ -39,7 +39,7 @@ pub fn install_archive(
     if tool_dir.exists() {
         return Err(anyhow!("{tool} {version} 已安装，请先卸载或使用其他版本"));
     }
-    let cache_dir = ctx.paths.root().join("cache");
+    let cache_dir = ctx.paths.cache_dir();
     std::fs::create_dir_all(&cache_dir)?;
     let archive_name = url
         .rsplit('/')

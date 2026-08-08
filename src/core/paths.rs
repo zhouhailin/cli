@@ -45,6 +45,16 @@ impl DevkitPaths {
         self.root.join("config.json")
     }
 
+    /// 压缩包缓存目录：DEVKIT_CACHE_DIR 优先，否则默认 <root>/cache
+    pub fn cache_dir(&self) -> PathBuf {
+        if let Ok(env_cache) = std::env::var("DEVKIT_CACHE_DIR") {
+            if !env_cache.is_empty() {
+                return PathBuf::from(env_cache);
+            }
+        }
+        self.root.join("cache")
+    }
+
     pub fn tool_dir(&self, tool: &str, version: &str) -> PathBuf {
         self.root.join(tool).join(version)
     }
@@ -106,5 +116,21 @@ mod tests {
         std::env::set_var("HOME", home.path());
         let paths = DevkitPaths::new().unwrap();
         assert_eq!(paths.root(), home.path().join(".devkit"));
+    }
+
+    #[test]
+    fn cache_dir_defaults_to_root_cache() {
+        let paths = DevkitPaths::with_root(PathBuf::from("/tmp/x"));
+        assert_eq!(paths.cache_dir(), PathBuf::from("/tmp/x/cache"));
+    }
+
+    #[serial(env)]
+    #[test]
+    fn cache_dir_reads_env_override() {
+        let paths = DevkitPaths::with_root(PathBuf::from("/tmp/x"));
+        std::env::set_var("DEVKIT_CACHE_DIR", "/data/pkg-cache");
+        assert_eq!(paths.cache_dir(), PathBuf::from("/data/pkg-cache"));
+        std::env::remove_var("DEVKIT_CACHE_DIR");
+        assert_eq!(paths.cache_dir(), PathBuf::from("/tmp/x/cache"));
     }
 }
