@@ -80,12 +80,12 @@ cli use java 21
 - 无参数：交互选择工具和版本
 - 删除前会确认，取消则不动作；cache 中下载的压缩包保留
 
-### `cli self-update`
+### `cli update`
 
 检查 GitHub Releases 最新版并自动替换自身二进制（Linux/macOS 原子替换，Windows 提示手动替换）：
 
 ```bash
-cli self-update
+cli update
 ```
 
 也可通过 `cli install` 列表中的“自更新”入口进入。

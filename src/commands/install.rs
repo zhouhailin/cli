@@ -9,7 +9,7 @@ const TOOL_CHOICES: [(&str, &str); 5] = [
     ("Node.js", "node"),
     ("Go", "go"),
     ("Maven", "maven"),
-    ("自更新", "self-update"),
+    ("自更新", "update"),
 ];
 
 pub fn run(tool: Option<String>) -> Result<()> {
@@ -31,7 +31,7 @@ pub fn run(tool: Option<String>) -> Result<()> {
         "node" => node::install(None),
         "go" => go::install(None),
         "maven" => maven::install(None),
-        "self-update" => crate::core::tools::self_update::run(),
+        "update" => crate::core::tools::self_update::run(),
         _ => Err(anyhow!("暂不支持的安装目标: {tool}")),
     }
 }

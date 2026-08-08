@@ -43,7 +43,7 @@ pub enum Command {
         version: Option<String>,
     },
     /// 自更新：检查并升级到 GitHub Releases 最新版
-    SelfUpdate,
+    Update,
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -53,6 +53,25 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Install { tool } => commands::install::run(tool),
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
         Command::Uninstall { tool, version } => commands::uninstall::run(tool, version),
-        Command::SelfUpdate => commands::self_update::run(),
+        Command::Update => commands::self_update::run(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn update_command_parses() {
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "update"]).unwrap().command,
+            Command::Update
+        ));
+    }
+
+    #[test]
+    fn old_self_update_name_rejected() {
+        assert!(Cli::try_parse_from(["cli", "self-update"]).is_err());
     }
 }
