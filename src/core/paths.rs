@@ -19,6 +19,19 @@ pub(crate) fn home_dir() -> Result<PathBuf> {
     dirs::home_dir().ok_or_else(|| anyhow!("无法获取用户主目录"))
 }
 
+/// 默认安装根目录：Linux 为 /opt/.devkit（系统级共享），
+/// 其他平台沿用用户主目录下的 .devkit
+pub(crate) fn default_root() -> Result<PathBuf> {
+    #[cfg(target_os = "linux")]
+    {
+        Ok(PathBuf::from("/opt/.devkit"))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(home_dir()?.join(".devkit"))
+    }
+}
+
 pub struct DevkitPaths {
     root: PathBuf,
 }
@@ -34,7 +47,7 @@ impl DevkitPaths {
                 return Ok(Self::with_root(PathBuf::from(env_root)));
             }
         }
-        Ok(Self::with_root(home_dir()?.join(".devkit")))
+        Ok(Self::with_root(default_root()?))
     }
 
     pub fn root(&self) -> &Path {
@@ -108,14 +121,38 @@ mod tests {
         assert_eq!(paths.root(), dir.path());
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn default_root_linux_is_opt_devkit() {
+        assert_eq!(default_root().unwrap(), PathBuf::from("/opt/.devkit"));
+    }
+
+    #[cfg(not(target_os = "linux"))]
     #[serial(env)]
     #[test]
-    fn new_falls_back_to_home_devkit() {
+    fn default_root_other_platforms_is_home_devkit() {
         let home = tempfile::tempdir().unwrap();
-        std::env::remove_var("DEVKIT_ROOT");
         std::env::set_var("HOME", home.path());
-        let paths = DevkitPaths::new().unwrap();
-        assert_eq!(paths.root(), home.path().join(".devkit"));
+        let root = default_root().unwrap();
+        assert_eq!(root, home.path().join(".devkit"));
+    }
+
+    #[serial(env)]
+    #[test]
+    fn new_falls_back_to_default_root() {
+        std::env::remove_var("DEVKIT_ROOT");
+        #[cfg(target_os = "linux")]
+        {
+            let paths = DevkitPaths::new().unwrap();
+            assert_eq!(paths.root(), Path::new("/opt/.devkit"));
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let home = tempfile::tempdir().unwrap();
+            std::env::set_var("HOME", home.path());
+            let paths = DevkitPaths::new().unwrap();
+            assert_eq!(paths.root(), home.path().join(".devkit"));
+        }
     }
 
     #[test]
