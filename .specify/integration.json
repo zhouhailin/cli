@@ -1,0 +1,15 @@
+{
+  "version": "0.15.3.dev0",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "lingma"
+  ],
+  "integration_settings": {
+    "lingma": {
+      "script": "sh",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "lingma",
+  "default_integration": "lingma"
+}

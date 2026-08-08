@@ -1,0 +1,17 @@
+# Rust
+/target
+
+# macOS
+.DS_Store
+
+# 系统/编辑器
+.idea/
+.vscode/
+*.swp
+
+# Speckit agent 目录（可能包含凭据）
+.lingma/
+.agent/
+
+# 本地数据
+~/.devkit/
