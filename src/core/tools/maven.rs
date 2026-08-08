@@ -70,12 +70,13 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
         let idx = select("请选择 Maven 版本", &labels)?;
         list[idx].clone()
     };
+    let url = resolve_url(&version);
     println!("准备安装 Maven {version}...");
+    println!("下载地址: {url}");
     if !confirm("确认开始下载安装？", true)? {
         println!("已取消");
         return Ok(());
     }
-    let url = resolve_url(&version);
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "maven", &version, &mut ctx, false)?;
     // 写入阿里云镜像 settings.xml

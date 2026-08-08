@@ -313,17 +313,18 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
     } else {
         format!("{} Java {version}", vendor.label)
     };
-    println!("准备安装 {desc}...");
-    if !confirm("确认开始下载安装？", true)? {
-        println!("已取消");
-        return Ok(());
-    }
     let platform = Platform::detect();
     let url = if vendor.name == "dragonwell" {
         resolve_dragonwell_url(variant, &version, &platform)?
     } else {
         resolve_url(vendor.name, &version, &platform)?
     };
+    println!("准备安装 {desc}...");
+    println!("下载地址: {url}");
+    if !confirm("确认开始下载安装？", true)? {
+        println!("已取消");
+        return Ok(());
+    }
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "java", &version, &mut ctx, false)?;
     // JAVA_HOME 注入（指向 current 链）

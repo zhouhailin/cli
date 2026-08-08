@@ -80,12 +80,13 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
         let idx = select("请选择 Go 版本", &labels)?;
         list[idx].clone()
     };
+    let url = resolve_url(&version, &platform);
     println!("准备安装 Go {version}...");
+    println!("下载地址: {url}");
     if !confirm("确认开始下载安装？", true)? {
         println!("已取消");
         return Ok(());
     }
-    let url = resolve_url(&version, &platform);
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "go", &version, &mut ctx, false)?;
     // 注入 GOPROXY 国内镜像（失败仅警告）

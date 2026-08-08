@@ -88,13 +88,14 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
         let idx = select("请选择 Node.js LTS 版本", &labels)?;
         list[idx].version.clone()
     };
+    let platform = Platform::detect();
+    let url = resolve_url(&version, &platform);
     println!("准备安装 Node.js {version}...");
+    println!("下载地址: {url}");
     if !confirm("确认开始下载安装？", true)? {
         println!("已取消");
         return Ok(());
     }
-    let platform = Platform::detect();
-    let url = resolve_url(&version, &platform);
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "node", &version, &mut ctx, false)?;
     let rc_file = rc_file_for_shell()?;
