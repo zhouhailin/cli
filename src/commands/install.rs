@@ -13,6 +13,8 @@ const TOOL_CHOICES: [(&str, &str); 5] = [
 ];
 
 pub fn run(tool: Option<String>) -> Result<()> {
+    let paths = crate::core::paths::DevkitPaths::new()?;
+    paths.ensure_writable()?;
     let tool = match tool {
         Some(t) => t,
         None => {

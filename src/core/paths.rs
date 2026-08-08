@@ -54,6 +54,19 @@ impl DevkitPaths {
         &self.root
     }
 
+    /// 确保安装根目录存在且可写；失败时返回含权限指引的错误信息
+    pub fn ensure_writable(&self) -> Result<()> {
+        let hint = "提示: 请使用 sudo 运行，或设置 DEVKIT_ROOT 指定可写目录，例如 DEVKIT_ROOT=$HOME/.devkit";
+        std::fs::create_dir_all(&self.root)
+            .map_err(|e| anyhow!("创建安装目录 {} 失败: {e}\n{hint}", self.root.display()))?;
+        // create_dir_all 对已存在目录不校验权限，写探针文件确认真实可写
+        let probe = self.root.join(".devkit-write-probe");
+        std::fs::write(&probe, b"")
+            .map_err(|e| anyhow!("安装目录 {} 不可写: {e}\n{hint}", self.root.display()))?;
+        std::fs::remove_file(&probe).ok();
+        Ok(())
+    }
+
     pub fn config_file(&self) -> PathBuf {
         self.root.join("config.json")
     }
@@ -169,5 +182,18 @@ mod tests {
         assert_eq!(paths.cache_dir(), PathBuf::from("/data/pkg-cache"));
         std::env::remove_var("DEVKIT_CACHE_DIR");
         assert_eq!(paths.cache_dir(), PathBuf::from("/tmp/x/cache"));
+    }
+
+    #[test]
+    fn ensure_writable_creates_root_and_probes() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a/b");
+        let paths = DevkitPaths::with_root(nested.clone());
+        paths.ensure_writable().unwrap();
+        assert!(nested.is_dir());
+        // 幂等：已存在且可写时再次调用成功
+        paths.ensure_writable().unwrap();
+        // 探针文件已清理
+        assert!(!nested.join(".devkit-write-probe").exists());
     }
 }
