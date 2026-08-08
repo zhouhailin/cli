@@ -12,6 +12,3 @@
 # Speckit agent 目录（可能包含凭据）
 .lingma/
 .agent/
-
-# 本地数据
-~/.devkit/
