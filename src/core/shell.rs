@@ -77,6 +77,34 @@ pub fn inject_path(rc_file: &Path, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// 在 devkit 块内 upsert 一条环境变量行（export KEY="value"），幂等
+pub fn inject_env_var(rc_file: &Path, key: &str, value: &str) -> Result<()> {
+    let line = format!("export {key}=\"{value}\"");
+    let current = read_block(rc_file, "devkit")?;
+    let content = if current.is_empty() {
+        line
+    } else {
+        let mut kept: Vec<&str> = Vec::new();
+        let mut replaced = false;
+        for l in current.lines() {
+            if l.starts_with(&format!("export {key}=\"")) {
+                if !replaced {
+                    kept.push(&line);
+                    replaced = true;
+                }
+            } else {
+                kept.push(l);
+            }
+        }
+        if !replaced {
+            kept.push(&line);
+        }
+        kept.join("\n")
+    };
+    upsert_block(rc_file, "devkit", &content)?;
+    Ok(())
+}
+
 /// 根据 $SHELL 检测 rc 文件路径。Windows 暂不支持。
 pub fn rc_file_for_shell() -> Result<PathBuf> {
     #[cfg(windows)]
@@ -161,6 +189,32 @@ mod tests {
             text.matches(&format!("export PATH=\"{}:$PATH\"", bin.display())).count(),
             1
         );
+    }
+
+    #[test]
+    fn inject_env_var_adds_and_updates_line() {
+        let dir = tempdir().unwrap();
+        let rc = dir.path().join(".zshrc");
+        inject_env_var(&rc, "JAVA_HOME", "/x/java").unwrap();
+        inject_env_var(&rc, "JAVA_HOME", "/x/java").unwrap();
+        let text = std::fs::read_to_string(&rc).unwrap();
+        assert_eq!(text.matches("export JAVA_HOME=\"/x/java\"").count(), 1);
+        inject_env_var(&rc, "JAVA_HOME", "/y/java").unwrap();
+        let text = std::fs::read_to_string(&rc).unwrap();
+        assert!(text.contains("export JAVA_HOME=\"/y/java\""));
+        assert!(!text.contains("/x/java"));
+    }
+
+    #[test]
+    fn inject_env_var_coexists_with_path_line() {
+        let dir = tempdir().unwrap();
+        let rc = dir.path().join(".zshrc");
+        let bin = dir.path().join("bin");
+        inject_path(&rc, &bin).unwrap();
+        inject_env_var(&rc, "JAVA_HOME", "/x/java").unwrap();
+        let text = std::fs::read_to_string(&rc).unwrap();
+        assert!(text.contains(&format!("export PATH=\"{}:$PATH\"", bin.display())));
+        assert!(text.contains("export JAVA_HOME=\"/x/java\""));
     }
 
     #[serial(env)]
