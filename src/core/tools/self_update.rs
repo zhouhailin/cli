@@ -66,7 +66,7 @@ pub fn run() -> Result<()> {
     // Unix 直接原子替换；Windows 运行中 exe 被锁，提示手动替换
     #[cfg(not(windows))]
     {
-        std::fs::rename(&staging, &exe)?;
+        replace_binary(&staging, &exe)?;
         println!("更新完成，当前版本: {latest}");
     }
     #[cfg(windows)]
@@ -81,10 +81,25 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
+/// Unix 原子替换：staging 权限对齐原 exe 后再替换
+/// （下载文件默认 0644，直接 rename 会丢失执行位导致更新后无法运行）
+#[cfg(not(windows))]
+pub fn replace_binary(staging: &std::path::Path, exe: &std::path::Path) -> Result<()> {
+    if let Ok(meta) = std::fs::metadata(exe) {
+        std::fs::set_permissions(staging, meta.permissions())
+            .map_err(|e| anyhow!("设置临时文件权限失败: {e}"))?;
+    }
+    std::fs::rename(staging, exe).map_err(|e| anyhow!("替换二进制失败: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::platform::{Arch, Os};
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn asset_name_maps_all_platforms() {
@@ -106,5 +121,35 @@ mod tests {
         let json = r#"{"tag_name": "v0.1.1", "name": "v0.1.1"}"#;
         assert_eq!(parse_latest_release(json).unwrap(), "v0.1.1");
         assert!(parse_latest_release("{}").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_binary_preserves_execute_permission() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("cli");
+        let staging = dir.path().join("cli.update");
+        std::fs::write(&exe, b"old").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(&staging, b"new").unwrap();
+        std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o644)).unwrap();
+        replace_binary(&staging, &exe).unwrap();
+        assert_eq!(std::fs::read(&exe).unwrap(), b"new");
+        let mode = std::fs::metadata(&exe).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_binary_preserves_custom_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("cli");
+        let staging = dir.path().join("cli.update");
+        std::fs::write(&exe, b"old").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::write(&staging, b"new").unwrap();
+        replace_binary(&staging, &exe).unwrap();
+        let mode = std::fs::metadata(&exe).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
     }
 }
