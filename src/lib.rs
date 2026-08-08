@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod core;
 
 use clap::{Parser, Subcommand};
@@ -15,6 +16,8 @@ pub struct Cli {
 pub enum Command {
     /// 显示版本信息
     Version,
+    /// 列出已安装的工具与版本
+    List,
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -23,5 +26,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             println!("cli {VERSION}");
             Ok(())
         }
+        Command::List => commands::list::run(),
     }
 }
