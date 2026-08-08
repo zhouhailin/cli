@@ -24,3 +24,20 @@ fn use_switches_version_and_prints_source_hint() {
         .stdout(predicate::str::contains("已切换到 java 21"))
         .stdout(predicate::str::contains("source /"));
 }
+
+#[test]
+fn use_without_tool_prompts_in_non_tty() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("config.json"),
+        r#"{"installed":{},"active":{}}"#,
+    )
+    .unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("DEVKIT_ROOT", dir.path())
+        .arg("use")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("请指定工具名"));
+}

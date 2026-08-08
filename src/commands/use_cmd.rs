@@ -2,13 +2,29 @@ use anyhow::{anyhow, Result};
 use std::path::Path;
 
 use crate::core::config::Config;
-use crate::core::interact::select;
+use crate::core::interact::{is_interactive, select};
 use crate::core::links::set_current_link;
 use crate::core::paths::DevkitPaths;
 
-pub fn run(tool: String, version: Option<String>) -> Result<()> {
+pub fn run(tool: Option<String>, version: Option<String>) -> Result<()> {
     let paths = DevkitPaths::new()?;
     let mut config = Config::load(&paths)?;
+    let tool = match tool {
+        Some(t) => t,
+        None => {
+            if !is_interactive() {
+                return Err(anyhow!("请指定工具名，例如: cli use java"));
+            }
+            let mut installed_tools: Vec<String> = config.installed.keys().cloned().collect();
+            installed_tools.sort();
+            if installed_tools.is_empty() {
+                return Err(anyhow!("尚未安装任何工具，请先执行 cli install"));
+            }
+            let labels: Vec<String> = installed_tools.iter().map(|t| t.to_string()).collect();
+            let idx = select("请选择要切换的工具", &labels)?;
+            installed_tools[idx].clone()
+        }
+    };
     let installed = config.installed.get(&tool).cloned().unwrap_or_default();
     if installed.is_empty() {
         return Err(anyhow!(

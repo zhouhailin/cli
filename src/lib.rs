@@ -35,8 +35,8 @@ pub enum Command {
     },
     /// 切换工具激活版本
     Use {
-        /// 工具名
-        tool: String,
+        /// 工具名（不填则交互选择已安装工具）
+        tool: Option<String>,
         /// 目标版本（不填则交互选择）
         version: Option<String>,
     },
