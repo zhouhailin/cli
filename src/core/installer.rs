@@ -6,6 +6,7 @@ use crate::core::config::Config;
 use crate::core::download::{download, extract_archive};
 use crate::core::paths::DevkitPaths;
 use crate::core::shell::{inject_path, rc_file_for_shell};
+use crate::debug_log;
 
 pub struct InstallContext {
     pub paths: DevkitPaths,
@@ -41,6 +42,7 @@ pub fn install_archive(
         .filter(|n| !n.is_empty())
         .ok_or_else(|| anyhow!("无法从 URL 解析文件名: {url}"))?;
     let archive_path = cache_dir.join(archive_name);
+    debug_log!("安装 {tool} {version}: 归档文件 {}", archive_path.display());
     // 下载（内部带重试 + 校验 + 原子 rename）
     download(url, &archive_path, sha256)?;
     // 解压到工具目录（若目录已存在则跳过已安装检测交由上层）
@@ -51,6 +53,7 @@ pub fn install_archive(
     extract_archive(&archive_path, &tool_dir)?;
     // 剥离单顶层目录（node-v22.12.0/、apache-maven-3.9.9/ 等），使 bin/conf 直接位于 tool_dir 下
     flatten_single_top_dir(&tool_dir)?;
+    debug_log!("已安装到 {}", tool_dir.display());
     // 注册配置并激活
     ctx.config.add_installed(tool, version);
     ctx.config.set_active(tool, version);
@@ -60,6 +63,7 @@ pub fn install_archive(
         let rc_file = rc_file_for_shell()?;
         let link = ctx.paths.current_link(tool);
         inject_path(&rc_file, &link.join("bin"))?;
+        debug_log!("已注入 PATH: {}", rc_file.display());
     }
     Ok(())
 }

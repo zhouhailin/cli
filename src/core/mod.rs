@@ -1,4 +1,5 @@
 pub mod config;
+pub mod debug;
 pub mod download;
 pub mod interact;
 pub mod installer;

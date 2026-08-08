@@ -2,32 +2,40 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
+use crate::debug_log;
+
 pub fn http_get_string(url: &str) -> Result<String> {
     http_get_string_with_headers(url, &[])
 }
 
 /// 带自定义请求头获取文本（部分官方 API 需要 Referer/UA 校验）
 pub fn http_get_string_with_headers(url: &str, headers: &[(&str, &str)]) -> Result<String> {
+    debug_log!("HTTP GET {url}");
     let mut request = ureq::get(url);
     for (k, v) in headers {
         request = request.set(k, v);
     }
     let body = request.call()?.into_string()?;
+    debug_log!("HTTP GET 完成: {} 字节", body.len());
     Ok(body)
 }
 
 pub fn download(url: &str, dest: &Path, expected_sha256: Option<&str>) -> Result<()> {
     let part = dest.with_extension("part");
+    debug_log!("开始下载 {url} -> {}", dest.display());
     let mut last_err: Option<String> = None;
     for attempt in 0..3 {
         match ureq::get(url).call() {
             Ok(resp) => {
                 let mut reader = resp.into_reader();
                 let mut file = std::fs::File::create(&part)?;
-                std::io::copy(&mut reader, &mut file)?;
+                let copied = std::io::copy(&mut reader, &mut file)?;
                 drop(file);
+                debug_log!("下载完成: {} 字节（第 {}/3 次尝试）", copied, attempt + 1);
                 if let Some(expected) = expected_sha256 {
+                    debug_log!("校验 SHA-256: 期望 {expected}");
                     verify_sha256(&part, expected)?;
+                    debug_log!("SHA-256 校验通过");
                 }
                 std::fs::rename(&part, dest)?;
                 return Ok(());
@@ -35,6 +43,7 @@ pub fn download(url: &str, dest: &Path, expected_sha256: Option<&str>) -> Result
             Err(e) => {
                 last_err = Some(e.to_string());
                 let backoff = 200u64 * (1 << attempt);
+                debug_log!("下载失败(尝试 {}/3): {e}，{backoff}ms 后重试", attempt + 1);
                 std::thread::sleep(std::time::Duration::from_millis(backoff));
             }
         }
@@ -64,6 +73,7 @@ pub fn extract_archive(archive: &Path, dest_dir: &Path) -> Result<()> {
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or_default();
+    debug_log!("解压 {name} -> {}", dest_dir.display());
     if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
         let file = std::fs::File::open(archive)?;
         let gz = flate2::read::GzDecoder::new(file);
