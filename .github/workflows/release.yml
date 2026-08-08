@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  # 发布前门禁：完整测试 + lint（tag push 不会触发 ci.yml 的 main 分支过滤）
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+
+  # 构建 5 个平台的发布二进制（macOS 双架构同机交叉编译）
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: cli-linux-x64
+            strip: true
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset: cli-linux-arm64
+            strip: true
+          - name: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            asset: cli-macos-x64
+            strip: true
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            asset: cli-macos-arm64
+            strip: true
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: cli-windows-x64.exe
+            strip: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Strip 二进制（减小体积）
+        if: matrix.strip
+        run: strip target/${{ matrix.target }}/release/cli
+      - name: 重命名为带平台后缀
+        shell: bash
+        run: |
+          if [ -f "target/${{ matrix.target }}/release/cli.exe" ]; then
+            cp "target/${{ matrix.target }}/release/cli.exe" "${{ matrix.asset }}"
+          else
+            cp "target/${{ matrix.target }}/release/cli" "${{ matrix.asset }}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.name }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  # 组装 GitHub Release：附件 + 自动变更日志
+  release:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true
