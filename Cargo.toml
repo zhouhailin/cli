@@ -7,6 +7,7 @@ description = "跨平台开发环境一键安装工具"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
 dirs = "5"
 flate2 = "1"
 serde = { version = "1", features = ["derive"] }

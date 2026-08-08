@@ -57,7 +57,7 @@ mod tests {
 
     fn test_paths() -> DevkitPaths {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.into_path();
+        let root = dir.keep();
         std::fs::create_dir_all(root.join("java/21")).unwrap();
         DevkitPaths::with_root(root)
     }
