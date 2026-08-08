@@ -1,3 +1,5 @@
+pub mod core;
+
 use clap::{Parser, Subcommand};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
