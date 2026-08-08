@@ -29,6 +29,8 @@
 | macOS aarch64 | `cli-macos-arm64` |
 | Windows x86_64 | `cli-windows-x64.exe` |
 
+> Linux 二进制为 **musl 静态编译**，不依赖系统 glibc，可在 CentOS 7 等旧版本 Linux 上直接运行。
+
 macOS / Linux 赋予执行权限后即可使用：
 
 ```bash

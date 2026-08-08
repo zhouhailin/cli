@@ -26,12 +26,12 @@ jobs:
         include:
           - name: linux-x64
             os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             asset: cli-linux-x64
             strip: true
           - name: linux-arm64
             os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             asset: cli-linux-arm64
             strip: true
           - name: macos-x64
@@ -50,6 +50,9 @@ jobs:
             asset: cli-windows-x64.exe
             strip: false
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -58,6 +61,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+      # Linux 构建为 musl 静态链接（bzip2/zstd 等 C 依赖需 musl-gcc），产物不依赖系统 glibc，兼容 CentOS 7 等旧系统
+      - name: 安装 musl 工具链
+        if: startsWith(matrix.target, 'x86_64-unknown-linux-musl') || startsWith(matrix.target, 'aarch64-unknown-linux-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --target ${{ matrix.target }}
       - name: Strip 二进制（减小体积）
         if: matrix.strip
@@ -70,6 +77,11 @@ jobs:
           else
             cp "target/${{ matrix.target }}/release/cli" "${{ matrix.asset }}"
           fi
+      # Linux 产物在 Alpine(musl) 容器中冒烟验证：可执行且版本输出正常
+      - name: Alpine 冒烟验证
+        if: startsWith(matrix.target, 'x86_64-unknown-linux-musl') || startsWith(matrix.target, 'aarch64-unknown-linux-musl')
+        shell: bash
+        run: docker run --rm -v "$PWD:/app" alpine:3.20 /app/${{ matrix.asset }} version
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.name }}
