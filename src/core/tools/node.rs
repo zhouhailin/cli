@@ -32,7 +32,10 @@ pub fn parse_node_lts(json: &str) -> Result<Vec<NodeLts>> {
         } else {
             String::new()
         };
-        list.push(NodeLts { version: e.version, codename });
+        list.push(NodeLts {
+            version: e.version,
+            codename,
+        });
     }
     // 版本降序（数字分段比较，不依赖原始顺序）
     list.sort_by(|a, b| crate::core::versions::compare(&b.version, &a.version));
@@ -46,10 +49,11 @@ pub fn parse_node_lts(json: &str) -> Result<Vec<NodeLts>> {
             .next()
             .unwrap_or("")
             .to_string();
-        if result
-            .iter()
-            .any(|r| r.version.trim_start_matches('v').starts_with(&format!("{major}.")))
-        {
+        if result.iter().any(|r| {
+            r.version
+                .trim_start_matches('v')
+                .starts_with(&format!("{major}."))
+        }) {
             continue;
         }
         result.push(n);

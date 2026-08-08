@@ -10,7 +10,9 @@ pub fn parse_maven_versions(html: &str) -> Result<Vec<String>> {
     let mut rest = html;
     while let Some(start) = rest.find(r#"<a href=""#) {
         let after = &rest[start + 9..];
-        let Some(end) = after.find(r#"">"#) else { break };
+        let Some(end) = after.find(r#"">"#) else {
+            break;
+        };
         let href = &after[..end];
         if let Some(dir) = href.strip_suffix('/') {
             if !dir.is_empty() && dir.chars().all(|c| c.is_ascii_digit() || c == '.') {

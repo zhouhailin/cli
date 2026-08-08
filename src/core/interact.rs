@@ -12,7 +12,9 @@ pub fn select<T: ToString>(title: &str, items: &[T]) -> Result<usize> {
         return Err(anyhow!("选项列表为空"));
     }
     if !is_interactive() {
-        return Err(anyhow!("当前环境不支持交互选择（非终端），请使用非交互参数"));
+        return Err(anyhow!(
+            "当前环境不支持交互选择（非终端），请使用非交互参数"
+        ));
     }
     let selection = dialoguer::Select::with_theme(&dialoguer::theme::ColorfulTheme::default())
         .with_prompt(title)
@@ -26,7 +28,9 @@ pub fn select<T: ToString>(title: &str, items: &[T]) -> Result<usize> {
 /// 确认框，返回 true/false；非 TTY 时返回错误
 pub fn confirm(title: &str, default: bool) -> Result<bool> {
     if !is_interactive() {
-        return Err(anyhow!("当前环境不支持交互确认（非终端），请使用非交互参数"));
+        return Err(anyhow!(
+            "当前环境不支持交互确认（非终端），请使用非交互参数"
+        ));
     }
     let result = dialoguer::Confirm::new()
         .with_prompt(title)
@@ -39,13 +43,17 @@ pub fn confirm(title: &str, default: bool) -> Result<bool> {
 /// 文本输入；非 TTY 时返回错误
 pub fn input(title: &str, default: Option<&str>) -> Result<String> {
     if !is_interactive() {
-        return Err(anyhow!("当前环境不支持交互输入（非终端），请使用非交互参数"));
+        return Err(anyhow!(
+            "当前环境不支持交互输入（非终端），请使用非交互参数"
+        ));
     }
     let mut builder = dialoguer::Input::<String>::new().with_prompt(title);
     if let Some(d) = default {
         builder = builder.default(d.to_string());
     }
-    let value = builder.interact().map_err(|e| anyhow!("交互输入失败: {e}"))?;
+    let value = builder
+        .interact()
+        .map_err(|e| anyhow!("交互输入失败: {e}"))?;
     Ok(value)
 }
 

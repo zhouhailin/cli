@@ -148,7 +148,10 @@ mod tests {
     #[test]
     fn http_get_string_returns_body() {
         let base = mock_server(vec![(200, "hello-world".to_string())]);
-        assert_eq!(http_get_string(&format!("{base}/x")).unwrap(), "hello-world");
+        assert_eq!(
+            http_get_string(&format!("{base}/x")).unwrap(),
+            "hello-world"
+        );
     }
 
     #[test]
@@ -199,8 +202,11 @@ mod tests {
         let dir = tempdir().unwrap();
         let f = dir.path().join("a.txt");
         std::fs::write(&f, b"data").unwrap();
-        verify_sha256(&f, "3A6EB0790F39AC87C94F3856B2DD2C5D110E6811602261A9A923D3BB23ADC8B7")
-            .unwrap(); // 大写也应通过
+        verify_sha256(
+            &f,
+            "3A6EB0790F39AC87C94F3856B2DD2C5D110E6811602261A9A923D3BB23ADC8B7",
+        )
+        .unwrap(); // 大写也应通过
     }
 
     #[test]
@@ -210,7 +216,10 @@ mod tests {
         make_tar_gz(&archive);
         let out = dir.path().join("out");
         extract_archive(&archive, &out).unwrap();
-        assert_eq!(std::fs::read_to_string(out.join("hello.txt")).unwrap(), "data");
+        assert_eq!(
+            std::fs::read_to_string(out.join("hello.txt")).unwrap(),
+            "data"
+        );
     }
 
     #[test]
@@ -220,7 +229,10 @@ mod tests {
         make_zip(&archive);
         let out = dir.path().join("out");
         extract_archive(&archive, &out).unwrap();
-        assert_eq!(std::fs::read_to_string(out.join("hello.txt")).unwrap(), "data");
+        assert_eq!(
+            std::fs::read_to_string(out.join("hello.txt")).unwrap(),
+            "data"
+        );
     }
 
     #[test]

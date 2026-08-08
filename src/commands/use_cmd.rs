@@ -11,12 +11,17 @@ pub fn run(tool: String, version: Option<String>) -> Result<()> {
     let mut config = Config::load(&paths)?;
     let installed = config.installed.get(&tool).cloned().unwrap_or_default();
     if installed.is_empty() {
-        return Err(anyhow!("{tool} 尚未安装任何版本，请先执行 cli install {tool}"));
+        return Err(anyhow!(
+            "{tool} 尚未安装任何版本，请先执行 cli install {tool}"
+        ));
     }
     let version = match version {
         Some(v) if installed.contains(&v) => v,
         Some(v) => {
-            return Err(anyhow!("版本 {v} 未安装，可用版本: {}", installed.join(", ")))
+            return Err(anyhow!(
+                "版本 {v} 未安装，可用版本: {}",
+                installed.join(", ")
+            ))
         }
         None => {
             let labels: Vec<String> = installed.iter().map(|v| format!("{tool} {v}")).collect();

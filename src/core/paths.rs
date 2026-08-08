@@ -77,10 +77,16 @@ mod tests {
     fn layout_paths_are_derived_from_root() {
         let paths = DevkitPaths::with_root(PathBuf::from("/tmp/x"));
         assert_eq!(paths.config_file(), PathBuf::from("/tmp/x/config.json"));
-        assert_eq!(paths.tool_dir("java", "21"), PathBuf::from("/tmp/x/java/21"));
+        assert_eq!(
+            paths.tool_dir("java", "21"),
+            PathBuf::from("/tmp/x/java/21")
+        );
         assert_eq!(paths.etc_dir(), PathBuf::from("/tmp/x/etc"));
         assert_eq!(paths.services_dir(), PathBuf::from("/tmp/x/services"));
-        assert_eq!(paths.current_link("node"), PathBuf::from("/tmp/x/current/node"));
+        assert_eq!(
+            paths.current_link("node"),
+            PathBuf::from("/tmp/x/current/node")
+        );
     }
 
     #[serial(env)]

@@ -97,9 +97,9 @@ pub fn flatten_single_top_dir(dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::io::{Read, Write};
     use std::net::TcpListener;
-    use serial_test::serial;
     use tempfile::tempdir;
 
     /// 本地 mock 服务：返回单个固定响应（供 install_archive 测试下载）
@@ -132,7 +132,8 @@ mod tests {
             dir_h.set_mode(0o755);
             dir_h.set_size(0);
             dir_h.set_cksum();
-            tar.append_data(&mut dir_h, "node-v22.12.0", std::io::empty()).unwrap();
+            tar.append_data(&mut dir_h, "node-v22.12.0", std::io::empty())
+                .unwrap();
             let mut header = tar::Header::new_gnu();
             header.set_size(4);
             header.set_mode(0o644);
@@ -199,7 +200,11 @@ mod tests {
         )
         .unwrap();
         assert!(ctx.paths.root().join("cache/go-1.22.0.tar.gz").exists());
-        assert!(!ctx.paths.root().join("cache/go-1.22.0.tar.gz.part").exists());
+        assert!(!ctx
+            .paths
+            .root()
+            .join("cache/go-1.22.0.tar.gz.part")
+            .exists());
     }
 
     #[test]
@@ -244,8 +249,8 @@ mod tests {
         let rc = rc_file_for_shell().unwrap();
         let text = std::fs::read_to_string(&rc).unwrap();
         let home_str = dir.path().to_string_lossy();
-        assert!(
-            text.contains(&format!("export PATH=\"{home_str}/.devkit/current/maven/bin:$PATH\""))
-        );
+        assert!(text.contains(&format!(
+            "export PATH=\"{home_str}/.devkit/current/maven/bin:$PATH\""
+        )));
     }
 }

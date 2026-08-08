@@ -79,7 +79,10 @@ mod tests {
         config.set_active("java", "21");
         config.save(&paths).unwrap();
         let loaded = Config::load(&paths).unwrap();
-        assert_eq!(loaded.installed.get("java").unwrap(), &vec!["21".to_string()]);
+        assert_eq!(
+            loaded.installed.get("java").unwrap(),
+            &vec!["21".to_string()]
+        );
         assert_eq!(loaded.active.get("java").unwrap(), "21");
     }
 
@@ -89,7 +92,10 @@ mod tests {
         config.add_installed("node", "22.11.0");
         config.add_installed("node", "22.11.0");
         config.add_installed("node", "23.0.0");
-        assert_eq!(config.installed["node"], vec!["22.11.0".to_string(), "23.0.0".to_string()]);
+        assert_eq!(
+            config.installed["node"],
+            vec!["22.11.0".to_string(), "23.0.0".to_string()]
+        );
     }
 
     #[test]

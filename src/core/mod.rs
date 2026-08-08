@@ -1,8 +1,8 @@
 pub mod config;
 pub mod debug;
 pub mod download;
-pub mod interact;
 pub mod installer;
+pub mod interact;
 pub mod links;
 pub mod paths;
 pub mod platform;

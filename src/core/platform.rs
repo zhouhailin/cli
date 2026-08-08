@@ -83,20 +83,58 @@ mod tests {
 
     #[test]
     fn os_name_maps_correctly() {
-        assert_eq!(Platform { os: Os::MacOs, arch: Arch::Aarch64 }.os_name(), "macos");
-        assert_eq!(Platform { os: Os::Linux, arch: Arch::Aarch64 }.os_name(), "linux");
-        assert_eq!(Platform { os: Os::Windows, arch: Arch::Aarch64 }.os_name(), "windows");
+        assert_eq!(
+            Platform {
+                os: Os::MacOs,
+                arch: Arch::Aarch64
+            }
+            .os_name(),
+            "macos"
+        );
+        assert_eq!(
+            Platform {
+                os: Os::Linux,
+                arch: Arch::Aarch64
+            }
+            .os_name(),
+            "linux"
+        );
+        assert_eq!(
+            Platform {
+                os: Os::Windows,
+                arch: Arch::Aarch64
+            }
+            .os_name(),
+            "windows"
+        );
     }
 
     #[test]
     fn arch_name_maps_correctly() {
-        assert_eq!(Platform { os: Os::Linux, arch: Arch::X86_64 }.arch_name(), "x86_64");
-        assert_eq!(Platform { os: Os::Linux, arch: Arch::Aarch64 }.arch_name(), "aarch64");
+        assert_eq!(
+            Platform {
+                os: Os::Linux,
+                arch: Arch::X86_64
+            }
+            .arch_name(),
+            "x86_64"
+        );
+        assert_eq!(
+            Platform {
+                os: Os::Linux,
+                arch: Arch::Aarch64
+            }
+            .arch_name(),
+            "aarch64"
+        );
     }
 
     #[test]
     fn display_shows_os_and_arch() {
-        let p = Platform { os: Os::MacOs, arch: Arch::Aarch64 };
+        let p = Platform {
+            os: Os::MacOs,
+            arch: Arch::Aarch64,
+        };
         assert_eq!(p.to_string(), "macos (aarch64)");
     }
 }

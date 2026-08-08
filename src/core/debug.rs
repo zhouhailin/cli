@@ -1,6 +1,8 @@
 /// CLI_DEBUG=true 时输出调试日志（输出到 stderr，避免污染 stdout 管道）
 pub fn is_debug_enabled() -> bool {
-    std::env::var("CLI_DEBUG").map(|v| v == "true").unwrap_or(false)
+    std::env::var("CLI_DEBUG")
+        .map(|v| v == "true")
+        .unwrap_or(false)
 }
 
 /// 调试日志宏：仅当 CLI_DEBUG=true 时输出 `[debug] 消息` 到 stderr

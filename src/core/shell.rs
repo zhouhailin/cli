@@ -186,7 +186,8 @@ mod tests {
         inject_path(&rc, &bin).unwrap();
         let text = std::fs::read_to_string(&rc).unwrap();
         assert_eq!(
-            text.matches(&format!("export PATH=\"{}:$PATH\"", bin.display())).count(),
+            text.matches(&format!("export PATH=\"{}:$PATH\"", bin.display()))
+                .count(),
             1
         );
     }
