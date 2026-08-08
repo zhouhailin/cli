@@ -24,7 +24,8 @@ pub fn vendors() -> Vec<Vendor> {
 /// 各发行版支持的 Java 版本
 pub fn available_versions(vendor: &Vendor) -> Vec<&'static str> {
     match vendor.name {
-        "dragonwell" | "bisheng" | "temurin" | "zulu" | "liberica" => vec!["8", "11", "21"],
+        "dragonwell" => vec!["8", "11", "17", "21", "25"],
+        "bisheng" | "temurin" | "zulu" | "liberica" => vec!["8", "11", "21"],
         "kona" => vec!["8", "11", "17", "21"],
         _ => vec![],
     }
@@ -95,15 +96,8 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
             let body = crate::core::download::http_get_string(&api)?;
             parse_liberica_download_url(&body)
         }
-        "dragonwell" | "bisheng" | "kona" => {
-            // Dragonwell 官方仅发布 Linux/Windows 构建
-            if vendor == "dragonwell"
-                && matches!(platform.os, crate::core::platform::Os::MacOs)
-            {
-                return Err(anyhow!(
-                    "Dragonwell 不提供 macOS 构建，请选择 Temurin/Zulu/Liberica/Kona 等发行版"
-                ));
-            }
+        "dragonwell" => resolve_dragonwell_url("standard", version, platform),
+        "bisheng" | "kona" => {
             let repo = github_repo(vendor, version)?;
             let api = format!("https://api.github.com/repos/{repo}/releases/latest");
             let body = crate::core::download::http_get_string(&api).map_err(|e| {
@@ -115,10 +109,95 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
     }
 }
 
-/// GitHub 发行版仓库名（按版本动态选择，dragonwell8/11/17/21 等独立仓库）
+/// 解析 Dragonwell 官方 releases.json（https://dragonwell-jdk.io/releases.json）
+/// 按渠道（oss/github）× 变体（standard/extended）× 版本查直链
+pub fn parse_dragonwell_releases(
+    json: &str,
+    variant: &str,
+    version: &str,
+    source: &str,
+    platform: &Platform,
+) -> Result<String> {
+    use std::collections::HashMap;
+    #[derive(serde::Deserialize)]
+    struct DragonwellSource {
+        // 官方 JSON 中部分键为 null（如 extended/17），必须用 Option 承载
+        #[serde(default)]
+        standard: HashMap<String, Option<String>>,
+        #[serde(default)]
+        extended: HashMap<String, Option<String>>,
+    }
+    #[derive(serde::Deserialize)]
+    struct DragonwellReleases {
+        oss: DragonwellSource,
+        github: DragonwellSource,
+    }
+    let releases: DragonwellReleases = serde_json::from_str(json)
+        .map_err(|e| anyhow!("解析 Dragonwell releases.json 失败: {e}"))?;
+    if !["standard", "extended"].contains(&variant) {
+        return Err(anyhow!("不支持的 Dragonwell 变体: {variant}"));
+    }
+    if !["oss", "github"].contains(&source) {
+        return Err(anyhow!("不支持的 Dragonwell 渠道: {source}"));
+    }
+    let source_map = if source == "oss" {
+        &releases.oss
+    } else {
+        &releases.github
+    };
+    let map = if variant == "standard" {
+        &source_map.standard
+    } else {
+        &source_map.extended
+    };
+    let prefix = match platform.os {
+        crate::core::platform::Os::Linux => match platform.arch {
+            crate::core::platform::Arch::X86_64 => "xurl",
+            crate::core::platform::Arch::Aarch64 => "aurl",
+        },
+        crate::core::platform::Os::Windows => match platform.arch {
+            crate::core::platform::Arch::X86_64 => "wurl",
+            crate::core::platform::Arch::Aarch64 => {
+                return Err(anyhow!("Dragonwell 官方未提供 Windows (aarch64) 构建"))
+            }
+        },
+        crate::core::platform::Os::MacOs => {
+            return Err(anyhow!(
+                "Dragonwell 不提供 macOS 构建，请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+            ))
+        }
+    };
+    let key = format!("{prefix}{version}");
+    map.get(&key)
+        .and_then(|u| u.as_ref())
+        .filter(|u| !u.is_empty())
+        .cloned()
+        .ok_or_else(|| anyhow!("Dragonwell {variant} {version} 未提供 {platform} 构建"))
+}
+
+/// Dragonwell 下载 URL：官方 releases.json 直链，OSS 优先、GitHub 兜底
+pub fn resolve_dragonwell_url(
+    variant: &str,
+    version: &str,
+    platform: &Platform,
+) -> Result<String> {
+    if matches!(platform.os, crate::core::platform::Os::MacOs) {
+        return Err(anyhow!(
+            "Dragonwell 不提供 macOS 构建，请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+        ));
+    }
+    let body = crate::core::download::http_get_string("https://dragonwell-jdk.io/releases.json")
+        .map_err(|e| anyhow!("获取 Dragonwell 发行版信息失败（{e}）"))?;
+    match parse_dragonwell_releases(&body, variant, version, "oss", platform) {
+        Ok(url) => Ok(url),
+        Err(oss_err) => parse_dragonwell_releases(&body, variant, version, "github", platform)
+            .map_err(|gh_err| anyhow!("OSS 与 GitHub 渠道均不可用: OSS({oss_err}) GitHub({gh_err})")),
+    }
+}
+
+/// GitHub 发行版仓库名（按版本动态选择，TencentKona-8/11/17/21 等独立仓库）
 pub fn github_repo(vendor: &str, version: &str) -> Result<String> {
     match vendor {
-        "dragonwell" => Ok(format!("dragonwell-project/dragonwell{version}")),
         "bisheng" => Ok(format!("openeuler/bishengjdk-{version}")),
         "kona" => Ok(format!("Tencent/TencentKona-{version}")),
         _ => Err(anyhow!("不支持的发行版: {vendor}")),
@@ -210,13 +289,41 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
         let v_idx = select("请选择 Java 版本", &version_labels)?;
         versions[v_idx].to_string()
     };
-    println!("准备安装 {} Java {version}...", vendor.label);
+    // Dragonwell 分 Standard/Extended 变体；macOS 官方无构建，提前拦截
+    let variant = if vendor.name == "dragonwell" {
+        if matches!(Platform::detect().os, crate::core::platform::Os::MacOs) {
+            return Err(anyhow!(
+                "Dragonwell 不提供 macOS 构建，请选择 Temurin/Zulu/Liberica/Kona 等发行版"
+            ));
+        }
+        let v_idx = select(
+            "请选择 Dragonwell 变体",
+            &["Standard（标准）", "Extended（增强）"],
+        )?;
+        if v_idx == 0 {
+            "standard"
+        } else {
+            "extended"
+        }
+    } else {
+        "standard"
+    };
+    let desc = if vendor.name == "dragonwell" {
+        format!("{} Java {version}（{variant}）", vendor.label)
+    } else {
+        format!("{} Java {version}", vendor.label)
+    };
+    println!("准备安装 {desc}...");
     if !confirm("确认开始下载安装？", true)? {
         println!("已取消");
         return Ok(());
     }
     let platform = Platform::detect();
-    let url = resolve_url(vendor.name, &version, &platform)?;
+    let url = if vendor.name == "dragonwell" {
+        resolve_dragonwell_url(variant, &version, &platform)?
+    } else {
+        resolve_url(vendor.name, &version, &platform)?
+    };
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "java", &version, &mut ctx, false)?;
     // JAVA_HOME 注入（指向 current 链）
@@ -328,12 +435,9 @@ mod tests {
 
     #[test]
     fn github_repo_maps_by_version() {
-        assert_eq!(
-            github_repo("dragonwell", "8").unwrap(),
-            "dragonwell-project/dragonwell8"
-        );
         assert_eq!(github_repo("kona", "21").unwrap(), "Tencent/TencentKona-21");
         assert_eq!(github_repo("bisheng", "17").unwrap(), "openeuler/bishengjdk-17");
+        assert!(github_repo("dragonwell", "8").is_err());
         assert!(github_repo("unknown", "8").is_err());
     }
 
@@ -372,4 +476,117 @@ mod tests {
         let kona = vendors().into_iter().find(|v| v.name == "kona").unwrap();
         assert_eq!(available_versions(&kona), vec!["8", "11", "17", "21"]);
     }
+
+    #[test]
+    fn available_versions_dragonwell_five_versions() {
+        let dw = vendors().into_iter().find(|v| v.name == "dragonwell").unwrap();
+        assert_eq!(available_versions(&dw), vec!["8", "11", "17", "21", "25"]);
+    }
+
+    const DRAGONWELL_SAMPLE: &str = r#"{
+      "oss": {
+        "standard": {
+          "version21": "21.0.6.0.7.6",
+          "xurl21": "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_x64_linux.tar.gz",
+          "aurl21": "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_aarch64_linux.tar.gz",
+          "wurl21": "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_x64_windows.zip"
+        },
+        "extended": {
+          "version21": "21.0.6.0.7.6",
+          "aurl21": "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Extended_21.0.6.0.7.6_aarch64_linux.tar.gz"
+        }
+      },
+      "github": {
+        "standard": {
+          "version21": "21.0.6.0.7.6",
+          "aurl21": "https://github.com/dragonwell-project/dragonwell21/releases/download/dragonwell-standard-21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_aarch64_linux.tar.gz"
+        }
+      }
+    }"#;
+
+    fn linux_aarch64() -> Platform {
+        Platform {
+            os: crate::core::platform::Os::Linux,
+            arch: crate::core::platform::Arch::Aarch64,
+        }
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_extracts_oss_url() {
+        assert_eq!(
+            parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "21", "oss", &linux_aarch64())
+                .unwrap(),
+            "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_aarch64_linux.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_uses_github_source() {
+        assert_eq!(
+            parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "21", "github", &linux_aarch64())
+                .unwrap(),
+            "https://github.com/dragonwell-project/dragonwell21/releases/download/dragonwell-standard-21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_aarch64_linux.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_extended_variant() {
+        assert_eq!(
+            parse_dragonwell_releases(DRAGONWELL_SAMPLE, "extended", "21", "oss", &linux_aarch64())
+                .unwrap(),
+            "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Extended_21.0.6.0.7.6_aarch64_linux.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_windows_x64() {
+        let p = Platform {
+            os: crate::core::platform::Os::Windows,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        assert_eq!(
+            parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "21", "oss", &p).unwrap(),
+            "https://dragonwell.oss-cn-shanghai.aliyuncs.com/21.0.6.0.7.6/Alibaba_Dragonwell_Standard_21.0.6.0.7.6_x64_windows.zip"
+        );
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_rejects_macos() {
+        let p = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        let err = parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "21", "oss", &p)
+            .unwrap_err();
+        assert!(err.to_string().contains("不提供 macOS 构建"));
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_rejects_windows_aarch64() {
+        let p = Platform {
+            os: crate::core::platform::Os::Windows,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        let err = parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "21", "oss", &p)
+            .unwrap_err();
+        assert!(err.to_string().contains("Windows (aarch64)"));
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_rejects_missing_key() {
+        let err = parse_dragonwell_releases(DRAGONWELL_SAMPLE, "standard", "17", "oss", &linux_aarch64())
+            .unwrap_err();
+        assert!(err.to_string().contains("未提供"));
+        let err = parse_dragonwell_releases(DRAGONWELL_SAMPLE, "extended", "21", "github", &linux_aarch64())
+            .unwrap_err();
+        assert!(err.to_string().contains("未提供"));
+    }
+
+    #[test]
+    fn parse_dragonwell_releases_rejects_bad_variant() {
+        let err = parse_dragonwell_releases(DRAGONWELL_SAMPLE, "pro", "21", "oss", &linux_aarch64())
+            .unwrap_err();
+        assert!(err.to_string().contains("不支持的 Dragonwell 变体"));
+    }
 }
+
