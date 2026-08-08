@@ -23,10 +23,10 @@ pub enum Command {
     Version,
     /// 列出已安装的工具与版本
     List,
-    /// 交互式安装开发工具（java/node/go/maven/redis/mysql）
+    /// 交互式安装开发工具（无参数时弹出工具列表选择）
     Install {
-        /// 工具名
-        tool: String,
+        /// 工具名（不填则交互选择）
+        tool: Option<String>,
     },
     /// 切换工具激活版本
     Use {
@@ -35,6 +35,8 @@ pub enum Command {
         /// 目标版本（不填则交互选择）
         version: Option<String>,
     },
+    /// 自更新：检查并升级到 GitHub Releases 最新版
+    SelfUpdate,
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -43,5 +45,6 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::List => commands::list::run(),
         Command::Install { tool } => commands::install::run(tool),
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
+        Command::SelfUpdate => commands::self_update::run(),
     }
 }
