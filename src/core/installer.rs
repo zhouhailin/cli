@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 
 use crate::core::config::Config;
 use crate::core::download::{download, extract_archive};
+use crate::core::links::set_current_link;
 use crate::core::paths::DevkitPaths;
 use crate::core::shell::{inject_path, rc_file_for_shell};
 use crate::debug_log;
@@ -59,6 +60,10 @@ pub fn install_archive(
     ctx.config.add_installed(tool, version);
     ctx.config.set_active(tool, version);
     ctx.save()?;
+    // 创建 current 链接（安装即激活；use 切换版本时复用同一函数更新指向）
+    let link = ctx.paths.current_link(tool);
+    let rel_target = format!("../{tool}/{version}");
+    set_current_link(&link, Path::new(&rel_target))?;
     // 注入 PATH（指向 current 链）
     if inject {
         let rc_file = rc_file_for_shell()?;
@@ -185,6 +190,40 @@ mod tests {
         // config 注册 + 激活
         assert_eq!(ctx.config.installed["node"], vec!["22.11.0".to_string()]);
         assert_eq!(ctx.config.active["node"], "22.11.0");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_archive_creates_current_link() {
+        let (mut ctx, _dir) = test_ctx();
+        let base = mock_server(make_tar_gz_bytes(), 200);
+        install_archive(
+            &format!("{base}/pkg.tar.gz"),
+            None,
+            "maven",
+            "3.9.9",
+            &mut ctx,
+            false,
+        )
+        .unwrap();
+        let link = ctx.paths.current_link("maven");
+        let target = std::fs::read_link(&link).unwrap();
+        assert_eq!(target, std::path::Path::new("../maven/3.9.9"));
+        // 再次安装其他版本：链接更新指向新版本（安装即激活）
+        let base2 = mock_server(make_tar_gz_bytes(), 200);
+        install_archive(
+            &format!("{base2}/pkg.tar.gz"),
+            None,
+            "maven",
+            "3.9.10",
+            &mut ctx,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_link(&link).unwrap(),
+            std::path::Path::new("../maven/3.9.10")
+        );
     }
 
     #[test]
