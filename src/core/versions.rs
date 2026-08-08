@@ -16,7 +16,7 @@ pub fn compare(a: &str, b: &str) -> Ordering {
 
 /// 解析单个版本段，容忍 v 前缀（v22 → 22）
 fn parse_segment(s: &str) -> Option<u64> {
-    let s = s.trim_start_matches(|c| c == 'v' || c == 'V');
+    let s = s.trim_start_matches(['v', 'V']);
     s.parse().ok()
 }
 
