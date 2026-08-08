@@ -12,7 +12,10 @@ pub struct NodeLts {
     pub codename: String,
 }
 
-/// 解析 nodejs.org/dist/index.json，过滤 LTS 行，每个大版本保留版本号最高的一条
+/// Node.js 阿里云镜像基地址（与 nodejs.org/dist 目录同构，国内可达）
+const NODE_MIRROR: &str = "https://mirrors.aliyun.com/nodejs-release";
+
+/// 解析镜像 index.json，过滤 LTS 行，每个大版本保留版本号最高的一条
 pub fn parse_node_lts(json: &str) -> Result<Vec<NodeLts>> {
     #[derive(serde::Deserialize)]
     struct NodeEntry {
@@ -62,11 +65,12 @@ pub fn parse_node_lts(json: &str) -> Result<Vec<NodeLts>> {
 }
 
 pub fn fetch_lts_list() -> Result<Vec<NodeLts>> {
-    let body = http_get_string("https://nodejs.org/dist/index.json")?;
+    let body = http_get_string(&format!("{NODE_MIRROR}/index.json"))?;
     parse_node_lts(&body)
 }
 
-/// node 下载 URL：https://nodejs.org/dist/<version>/node-<version>-<os>-<arch>.<ext>
+/// node 下载 URL：<镜像>/<version>/node-<version>-<os>-<arch>.<ext>
+/// 镜像基地址: https://mirrors.aliyun.com/nodejs-release
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
     let (os, ext) = match platform.os {
         crate::core::platform::Os::MacOs => ("darwin", "tar.gz"),
@@ -77,7 +81,7 @@ pub fn resolve_url(version: &str, platform: &Platform) -> String {
         crate::core::platform::Arch::X86_64 => "x64",
         crate::core::platform::Arch::Aarch64 => "arm64",
     };
-    format!("https://nodejs.org/dist/{version}/node-{version}-{os}-{arch}.{ext}")
+    format!("{NODE_MIRROR}/{version}/node-{version}-{os}-{arch}.{ext}")
 }
 
 pub fn install(version_hint: Option<&str>) -> Result<()> {
@@ -146,7 +150,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("v22.12.0", &p),
-            "https://nodejs.org/dist/v22.12.0/node-v22.12.0-darwin-arm64.tar.gz"
+            "https://mirrors.aliyun.com/nodejs-release/v22.12.0/node-v22.12.0-darwin-arm64.tar.gz"
         );
     }
 
@@ -158,7 +162,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("v20.19.0", &p),
-            "https://nodejs.org/dist/v20.19.0/node-v20.19.0-win-x64.zip"
+            "https://mirrors.aliyun.com/nodejs-release/v20.19.0/node-v20.19.0-win-x64.zip"
         );
     }
 }
