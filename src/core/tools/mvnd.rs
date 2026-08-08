@@ -52,7 +52,7 @@ pub fn parse_sha256_text(text: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("无法从校验和文本解析 SHA-256: {text:?}"))
 }
 
-/// mvnd 下载 URL（archive 资产命名：maven-mvnd-<ver>-<os>-<arch>.tar.gz）
+/// mvnd 下载 URL（archive 资产命名：maven-mvnd-<ver>-<os>-<arch>.tar.gz，直接位于版本目录根）
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
     let os = match platform.os {
         crate::core::platform::Os::MacOs => "darwin",
@@ -64,7 +64,7 @@ pub fn resolve_url(version: &str, platform: &Platform) -> String {
         crate::core::platform::Arch::Aarch64 => "aarch64",
     };
     format!(
-        "https://archive.apache.org/dist/maven/mvnd/{version}/binaries/maven-mvnd-{version}-{os}-{arch}.tar.gz"
+        "https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
     )
 }
 
@@ -91,7 +91,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &linux_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-linux-amd64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
         );
         let mac_arm = Platform {
             os: Os::MacOs,
@@ -99,7 +99,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &mac_arm),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
         );
         let win_x64 = Platform {
             os: Os::Windows,
@@ -107,7 +107,7 @@ mod tests {
         };
         assert_eq!(
             resolve_url("1.0.6", &win_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-windows-amd64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
         );
     }
 }

@@ -163,7 +163,7 @@ pub fn parse_version_dirs(html: &str) -> Result<Vec<String>>
 pub fn resolve_url(version: &str, platform: &Platform) -> String {
     let os = match platform.os { Os::MacOs => "darwin", Os::Linux => "linux", Os::Windows => "windows" };
     let arch = match platform.arch { Arch::X86_64 => "amd64", Arch::Aarch64 => "aarch64" };
-    format!("https://archive.apache.org/dist/maven/mvnd/{version}/binaries/maven-mvnd-{version}-{os}-{arch}.tar.gz")
+    format!("https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz")
 }
 ```
 

@@ -568,7 +568,7 @@ pub fn resolve_url(version: &str, platform: &Platform) -> String {
         crate::core::platform::Arch::Aarch64 => "aarch64",
     };
     format!(
-        "https://archive.apache.org/dist/maven/mvnd/{version}/binaries/maven-mvnd-{version}-{os}-{arch}.tar.gz"
+        "https://archive.apache.org/dist/maven/mvnd/{version}/maven-mvnd-{version}-{os}-{arch}.tar.gz"
     )
 }
 
@@ -592,17 +592,17 @@ mod tests {
         let linux_x64 = Platform { os: Os::Linux, arch: Arch::X86_64 };
         assert_eq!(
             resolve_url("1.0.6", &linux_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-linux-amd64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-linux-amd64.tar.gz"
         );
         let mac_arm = Platform { os: Os::MacOs, arch: Arch::Aarch64 };
         assert_eq!(
             resolve_url("1.0.6", &mac_arm),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-darwin-aarch64.tar.gz"
         );
         let win_x64 = Platform { os: Os::Windows, arch: Arch::X86_64 };
         assert_eq!(
             resolve_url("1.0.6", &win_x64),
-            "https://archive.apache.org/dist/maven/mvnd/1.0.6/binaries/maven-mvnd-1.0.6-windows-amd64.tar.gz"
+            "https://archive.apache.org/dist/maven/mvnd/1.0.6/maven-mvnd-1.0.6-windows-amd64.tar.gz"
         );
     }
 }
