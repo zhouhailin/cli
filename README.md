@@ -41,6 +41,9 @@ sudo mv cli-macos-arm64 /usr/local/bin/cli
 ## 快速开始
 
 ```bash
+# 不带参数：弹出工具列表交互选择（Java / Node.js / Go / Maven / 自更新）
+cli install
+
 # 交互式安装 Java（选择发行版与版本）
 cli install java
 
@@ -58,14 +61,25 @@ cli use java 21
 
 ## 命令详解
 
-### `cli install <tool>`
+### `cli install [tool]`
 
 交互式安装工具，支持：`java`、`node`、`go`、`maven`。
 
+- **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
 - **java**：先选择 JDK 发行版，再选择大版本（8/11/17/21/25 视发行版而定），下载时实时解析最新补丁版本
 - **node / go / maven**：从官方 API 拉取版本列表交互选择
 
 安装流程：下载（带重试）→ SHA-256 校验（毕昇）→ 解压 → 剥离单顶层目录 → 注册配置 → 注入 PATH。
+
+### `cli self-update`
+
+检查 GitHub Releases 最新版并自动替换自身二进制（Linux/macOS 原子替换，Windows 提示手动替换）：
+
+```bash
+cli self-update
+```
+
+也可通过 `cli install` 列表中的“自更新”入口进入。
 
 ### `cli use <tool> [version]`
 
@@ -100,6 +114,7 @@ cli use node         # 交互选择
 | 变量 | 说明 |
 |------|------|
 | `DEVKIT_ROOT` | 自定义安装根目录（默认 `~/.devkit`），适合多环境隔离或 CI 测试 |
+| `DEVKIT_CACHE_DIR` | 压缩包缓存目录（默认 `<根目录>/cache`），便于离线分发 |
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
 | `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
 
