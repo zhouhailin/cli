@@ -341,9 +341,10 @@ pub fn parse_github_release_url(json: &str, platform: &Platform) -> Result<Strin
         crate::core::platform::Os::Linux => "linux",
         crate::core::platform::Os::Windows => "windows",
     };
-    let arch_key = match platform.arch {
-        crate::core::platform::Arch::X86_64 => "x64",
-        crate::core::platform::Arch::Aarch64 => "aarch64",
+    // 架构匹配：x64 与 x86_64（下划线）两种命名并存（Kona 用 x86_64，其余用 x64）
+    let arch_keys: &[&str] = match platform.arch {
+        crate::core::platform::Arch::X86_64 => &["x64", "x86_64"],
+        crate::core::platform::Arch::Aarch64 => &["aarch64"],
     };
     release
         .assets
@@ -356,7 +357,7 @@ pub fn parse_github_release_url(json: &str, platform: &Platform) -> Result<Strin
                 .any(|k| name_lc.contains(k));
             looks_jdk
                 && name_lc.contains(os_key)
-                && name_lc.contains(arch_key)
+                && arch_keys.iter().any(|k| name_lc.contains(k))
                 && (name.ends_with(".tar.gz") || name.ends_with(".zip"))
         })
         .map(|(_, url)| url)
@@ -534,6 +535,25 @@ mod tests {
         assert_eq!(
             parse_github_release_url(json, &p).unwrap(),
             "https://github.com/gh/dragonwell-macos.tar.gz"
+        );
+    }
+
+    #[test]
+    fn parse_github_release_url_matches_kona_x86_64_asset() {
+        // Kona 资产用 x86_64（下划线）命名，而非 x64（真实 TencentKona-8 资产）
+        let json = r#"{
+          "assets": [
+            {"name":"TencentKona8.0.27.b1_jdk_linux-x86_64_8u502.tar.gz","browser_download_url":"https://github.com/Tencent/TencentKona-8/releases/download/8.0.27-GA/TencentKona8.0.27.b1_jdk_linux-x86_64_8u502.tar.gz"},
+            {"name":"TencentKona8.0.27.b1_jdk_linux-x86_64_8u502.tar.gz.md5","browser_download_url":"https://github.com/x/y.md5"}
+          ]
+        }"#;
+        let p = Platform {
+            os: crate::core::platform::Os::Linux,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        assert_eq!(
+            parse_github_release_url(json, &p).unwrap(),
+            "https://github.com/Tencent/TencentKona-8/releases/download/8.0.27-GA/TencentKona8.0.27.b1_jdk_linux-x86_64_8u502.tar.gz"
         );
     }
 
