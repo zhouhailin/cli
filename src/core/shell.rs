@@ -102,6 +102,7 @@ pub fn rc_file_for_shell() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::tempdir;
 
     #[test]
@@ -162,6 +163,7 @@ mod tests {
         );
     }
 
+    #[serial(env)]
     #[test]
     fn rc_file_for_shell_detects_zsh() {
         let home = tempdir().unwrap();
@@ -170,6 +172,7 @@ mod tests {
         assert_eq!(rc_file_for_shell().unwrap(), home.path().join(".zshrc"));
     }
 
+    #[serial(env)]
     #[test]
     fn rc_file_for_shell_detects_bash() {
         let home = tempdir().unwrap();
@@ -178,6 +181,7 @@ mod tests {
         assert_eq!(rc_file_for_shell().unwrap(), home.path().join(".bashrc"));
     }
 
+    #[serial(env)]
     #[test]
     fn rc_file_for_shell_rejects_unknown() {
         std::env::set_var("SHELL", "/bin/fish");

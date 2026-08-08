@@ -65,6 +65,7 @@ impl DevkitPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn with_root_sets_root() {
@@ -82,6 +83,7 @@ mod tests {
         assert_eq!(paths.current_link("node"), PathBuf::from("/tmp/x/current/node"));
     }
 
+    #[serial(env)]
     #[test]
     fn new_reads_devkit_root_env() {
         let dir = tempfile::tempdir().unwrap();
@@ -90,6 +92,7 @@ mod tests {
         assert_eq!(paths.root(), dir.path());
     }
 
+    #[serial(env)]
     #[test]
     fn new_falls_back_to_home_devkit() {
         let home = tempfile::tempdir().unwrap();
