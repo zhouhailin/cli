@@ -5,6 +5,7 @@ pub mod installer;
 pub mod interact;
 pub mod links;
 pub mod mirror;
+pub mod offline;
 pub mod paths;
 pub mod platform;
 pub mod shell;
