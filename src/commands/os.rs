@@ -10,12 +10,12 @@ use crate::OsCommand;
 pub fn run(cmd: OsCommand) -> Result<()> {
     match cmd {
         OsCommand::List => run_list(),
-        OsCommand::Info { name } => run_info(&name),
+        OsCommand::Info { name } => run_info(name.as_deref()),
         OsCommand::Download {
             name,
             version,
             output_dir,
-        } => run_download(&name, version.as_deref(), &output_dir),
+        } => run_download(name.as_deref(), version.as_deref(), &output_dir),
     }
 }
 
@@ -31,8 +31,25 @@ pub fn run_list() -> Result<()> {
     Ok(())
 }
 
-pub fn run_info(name: &str) -> Result<()> {
-    let images = mirror::fetch_images(name)?;
+/// 无 name 时交互选择系统（非 TTY 报错提示，不发起网络请求）
+fn resolve_name(name: Option<&str>) -> Result<String> {
+    if let Some(n) = name {
+        return Ok(n.to_string());
+    }
+    if !is_interactive() {
+        return Err(anyhow!("非终端环境请指定系统名，例如: cli os info <系统名>"));
+    }
+    let names = mirror::fetch_all_names()?;
+    if names.is_empty() {
+        return Err(anyhow!("暂无可用系统镜像"));
+    }
+    let idx = select("请选择系统", &names)?;
+    Ok(names[idx].clone())
+}
+
+pub fn run_info(name: Option<&str>) -> Result<()> {
+    let name = resolve_name(name)?;
+    let images = mirror::fetch_images(&name)?;
     if images.is_empty() {
         println!("系统 {name} 暂无可用镜像");
         return Ok(());
@@ -51,8 +68,9 @@ pub fn run_info(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn run_download(name: &str, version: Option<&str>, output_dir: &str) -> Result<()> {
-    let images = mirror::fetch_images(name)?;
+pub fn run_download(name: Option<&str>, version: Option<&str>, output_dir: &str) -> Result<()> {
+    let name = resolve_name(name)?;
+    let images = mirror::fetch_images(&name)?;
     if images.is_empty() {
         return Err(anyhow!("系统 {name} 暂无可用镜像"));
     }

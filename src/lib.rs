@@ -72,13 +72,13 @@ pub enum OsCommand {
     List,
     /// 查询系统全部镜像（版本/大小/链接）
     Info {
-        /// 系统名（如 almalinux、ubuntu）
-        name: String,
+        /// 系统名（如 almalinux、ubuntu；不填则交互选择）
+        name: Option<String>,
     },
     /// 下载系统 ISO 镜像
     Download {
-        /// 系统名（如 almalinux、ubuntu）
-        name: String,
+        /// 系统名（如 almalinux、ubuntu；不填则交互选择）
+        name: Option<String>,
         /// 精确指定镜像版本（version 字段）；不填则交互选择
         #[arg(long)]
         version: Option<String>,

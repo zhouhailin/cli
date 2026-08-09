@@ -147,3 +147,29 @@ fn os_download_skips_existing_file_non_tty() {
         .stdout(predicate::str::contains("已存在，跳过"));
     assert_eq!(std::fs::read_to_string(&dest).unwrap(), "old");
 }
+
+#[test]
+fn os_info_non_tty_without_name_reports_hint() {
+    let home = tempfile::tempdir().unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("HOME", home.path())
+        .env("DEVKIT_ROOT", home.path().join("devkit"))
+        .args(["os", "info"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("请指定系统名"));
+}
+
+#[test]
+fn os_download_non_tty_without_name_reports_hint() {
+    let home = tempfile::tempdir().unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("HOME", home.path())
+        .env("DEVKIT_ROOT", home.path().join("devkit"))
+        .args(["os", "download"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("请指定系统名"));
+}
