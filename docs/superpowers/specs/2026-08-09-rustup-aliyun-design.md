@@ -92,11 +92,11 @@
 
 ## 范围边界（YAGNI）
 
-- 不纳入 `cli list` / `cli uninstall` / `cli use`（rustup 自带 toolchain 管理；用户已确认仅 install）。
+- 不纳入 `cli uninstall` / `cli use`（rustup 自带 toolchain 管理；用户已确认仅 install）。
+- `cli list` 展示：安装成功后写入 config.json（`installed.rust = ["rustup"]`），供 list 显示（2026-08-09 用户确认纳入展示）。
 - 不配置 crates.io 稀疏索引镜像（用户未要求）。
 - 不做官方源 fallback。
 - Windows 暂不支持（与 shell rc 注入机制一致）。
-- 不记录 config.json（与 list/uninstall 无关）。
 
 ## 文档
 
