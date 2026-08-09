@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
@@ -109,6 +110,61 @@ pub fn fetch_all_names() -> Result<Vec<String>> {
 pub fn fetch_images(name: &str) -> Result<Vec<MirrorImage>> {
     let body = http_get_string(&format!("{}/findByNameOrVersion?name={name}", api_base()))?;
     parse_images_response(&body)
+}
+
+/// 计算文件 MD5（小写十六进制）
+pub fn md5_of(path: &Path) -> Result<String> {
+    use md5::{Digest, Md5};
+    let mut hasher = Md5::new();
+    let mut file = std::fs::File::open(path)?;
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// 解析 MD5SUMS 文本（"<hash>  <filename>" 每行）→ 文件名 → 哈希
+pub fn parse_md5sums(text: &str) -> HashMap<String, String> {
+    text.lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let hash = parts.next()?.to_lowercase();
+            let file = parts.next()?.to_string();
+            Some((file, hash))
+        })
+        .collect()
+}
+
+/// 按镜像记录做 MD5 校验（降级警告策略）：
+/// 无 md5sum 字段 / 拉取校验文件失败 / 文件中无该文件记录 → 警告不阻断；
+/// 匹配到哈希且不一致 → 报错
+pub fn verify_image_md5(path: &Path, image: &MirrorImage) -> Result<()> {
+    let Some(url) = image.md5sum.as_deref().filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    let text = match http_get_string(url) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("警告: 拉取校验文件失败，跳过 MD5 校验: {e}");
+            return Ok(());
+        }
+    };
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let sums = parse_md5sums(&text);
+    let Some(expected) = sums.get(&file_name) else {
+        eprintln!("警告: 校验文件中未找到 {file_name} 的记录，跳过 MD5 校验");
+        return Ok(());
+    };
+    let actual = md5_of(path)?;
+    if actual != *expected {
+        return Err(anyhow!(
+            "MD5 校验失败: 期望 {expected}, 实际 {actual}（可重跑下载）"
+        ));
+    }
+    println!("MD5 校验通过: {file_name}");
+    Ok(())
 }
 
 #[cfg(test)]
@@ -230,5 +286,78 @@ mod tests {
         std::env::remove_var("DEVKIT_MIRROR_API");
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].version, "9(latest-aarch64-boot)");
+    }
+
+    #[test]
+    fn parse_md5sums_ok() {
+        let sums = parse_md5sums("abc123  a.iso\nxyz  b.iso\n");
+        assert_eq!(sums.get("a.iso"), Some(&"abc123".to_string()));
+        assert_eq!(sums.get("b.iso"), Some(&"xyz".to_string()));
+        assert!(sums.get("c.iso").is_none());
+    }
+
+    #[test]
+    fn md5_of_matches_known_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.txt");
+        std::fs::write(&f, b"data").unwrap();
+        assert_eq!(md5_of(&f).unwrap(), "8d777f385d3dfec8815d20f7496026dc");
+    }
+
+    #[test]
+    fn verify_image_md5_no_field_ok() {
+        let images = parse_images_response(IMAGE_JSON).unwrap(); // md5sum 为 null
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("x.iso");
+        std::fs::write(&f, b"data").unwrap();
+        verify_image_md5(&f, &images[0]).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn verify_image_md5_unreachable_sumfile_warns_ok() {
+        // 拉取失败（无服务监听）→ 降级警告不报错
+        let mut img = parse_images_response(IMAGE_JSON).unwrap().remove(0);
+        img.md5sum = Some("http://127.0.0.1:1/nonexistent/MD5SUMS".to_string());
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("x.iso");
+        std::fs::write(&f, b"data").unwrap();
+        verify_image_md5(&f, &img).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn verify_image_md5_missing_entry_warns_ok() {
+        // 校验文件里没有该文件记录 → 降级警告不报错
+        let base = mock_server(vec![(
+            200,
+            "00000000000000000000000000000000  other.iso".to_string(),
+        )]);
+        std::env::set_var("DEVKIT_MIRROR_API", &base);
+        let mut img = parse_images_response(IMAGE_JSON).unwrap().remove(0);
+        img.md5sum = Some(format!("{base}/MD5SUMS"));
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("x.iso");
+        std::fs::write(&f, b"data").unwrap();
+        verify_image_md5(&f, &img).unwrap();
+        std::env::remove_var("DEVKIT_MIRROR_API");
+    }
+
+    #[test]
+    #[serial]
+    fn verify_image_md5_mismatch_errors() {
+        let base = mock_server(vec![(
+            200,
+            "00000000000000000000000000000000  x.iso".to_string(),
+        )]);
+        std::env::set_var("DEVKIT_MIRROR_API", &base);
+        let mut img = parse_images_response(IMAGE_JSON).unwrap().remove(0);
+        img.md5sum = Some(format!("{base}/MD5SUMS"));
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("x.iso");
+        std::fs::write(&f, b"data").unwrap();
+        let err = verify_image_md5(&f, &img).unwrap_err();
+        std::env::remove_var("DEVKIT_MIRROR_API");
+        assert!(err.to_string().contains("MD5 校验失败"));
     }
 }
