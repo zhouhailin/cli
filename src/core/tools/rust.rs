@@ -115,9 +115,30 @@ pub fn aliyun_env_vars() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
-/// 已安装检测：<root>/rustup 目录存在即视为已安装
+/// 已安装检测：<root>/rustup/bin/rustup 存在（rustup 二进制就位）才算安装完成。
+/// 仅目录存在（上次安装失败残留）不算已安装，避免残留目录阻塞重试。
 pub fn is_installed(root: &Path) -> bool {
-    rustup_home_dir(root).exists()
+    rustup_home_dir(root).join("bin").join("rustup").exists()
+}
+
+/// 未完成安装残留检测：<root>/rustup 目录存在但 rustup 二进制未就位。
+/// 返回残留目录路径，供安装流程警告与清理指引使用。
+pub fn install_residual(root: &Path) -> Option<PathBuf> {
+    let home = rustup_home_dir(root);
+    if home.exists() && !home.join("bin").join("rustup").exists() {
+        Some(home)
+    } else {
+        None
+    }
+}
+
+/// 清理残留的命令提示（rustup 目录 + cargo 目录）
+pub fn clean_residual_hint(root: &Path) -> String {
+    format!(
+        "rm -rf {} {}",
+        rustup_home_dir(root).display(),
+        cargo_home_dir(root).display()
+    )
 }
 
 /// 安装 Rust（rustup）：选择源 → 执行脚本 → 持久化环境变量与 PATH
@@ -142,6 +163,15 @@ pub fn install(_hint: Option<&str>) -> Result<()> {
                 rustup_home_dir(root).display()
             ));
         }
+        // 存在未完成残留（上次安装失败/中断）：警告并继续，rustup 可基于已有 settings 续装；
+        // 若续装异常可先清理残留重试
+        if let Some(residual) = install_residual(root) {
+            println!(
+                "警告: 检测到上次未完成的安装残留（{}），将尝试继续安装；\n      若安装异常，可先清理后重试：{}",
+                residual.display(),
+                clean_residual_hint(root)
+            );
+        }
         let source = RustSource::choose()?;
         println!("开始安装 Rust（{}）...", source.label());
         let status = std::process::Command::new("sh")
@@ -154,7 +184,10 @@ pub fn install(_hint: Option<&str>) -> Result<()> {
                 .code()
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| "信号终止".to_string());
-            return Err(anyhow::anyhow!("Rust 安装失败，退出码 {code}"));
+            return Err(anyhow::anyhow!(
+                "Rust 安装失败，退出码 {code}。常见原因：内存不足（rustup 解压 rustc 需要较多内存，\n可通过 free -h 查看并用 swap 缓解）、网络问题或残留损坏。\n可清理后重试：{}",
+                clean_residual_hint(root)
+            ));
         }
         // 持久化环境变量与 PATH（失败仅警告，不阻断已完成的安装）
         let rc = rc_file_for_shell()?;
@@ -251,11 +284,32 @@ mod tests {
     }
 
     #[test]
-    fn is_installed_detects_rustup_dir() {
+    fn is_installed_requires_rustup_binary() {
         let dir = tempfile::tempdir().unwrap();
         assert!(!is_installed(dir.path()));
+        // 仅目录存在（残留/未完成安装）不算已安装
         std::fs::create_dir_all(dir.path().join("rustup")).unwrap();
+        assert!(!is_installed(dir.path()));
+        // rustup 二进制就位才算安装完成
+        std::fs::create_dir_all(dir.path().join("rustup/bin")).unwrap();
+        std::fs::write(dir.path().join("rustup/bin/rustup"), "").unwrap();
         assert!(is_installed(dir.path()));
+    }
+
+    #[test]
+    fn install_residual_detects_incomplete_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(install_residual(dir.path()).is_none());
+        // 有目录但 rustup 二进制未就位 → 残留
+        std::fs::create_dir_all(dir.path().join("rustup")).unwrap();
+        assert_eq!(
+            install_residual(dir.path()),
+            Some(rustup_home_dir(dir.path()))
+        );
+        // 二进制就位后不再是残留
+        std::fs::create_dir_all(dir.path().join("rustup/bin")).unwrap();
+        std::fs::write(dir.path().join("rustup/bin/rustup"), "").unwrap();
+        assert!(install_residual(dir.path()).is_none());
     }
 
     #[test]
