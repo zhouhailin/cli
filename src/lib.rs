@@ -15,7 +15,8 @@ pub fn current_version() -> &'static str {
     name = "cli",
     version = current_version(),
     about = "跨平台开发环境一键安装工具",
-    help_template = "{about-with-newline}\n版本: {version}\n\n{usage-heading} {usage}\n\n{all-args}{after-help}"
+    help_template = "{about-with-newline}\n版本: {version}\n\n{usage-heading} {usage}\n\n{all-args}{after-help}",
+    infer_subcommands = true
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -78,5 +79,49 @@ mod tests {
     #[test]
     fn old_self_update_name_rejected() {
         assert!(Cli::try_parse_from(["cli", "self-update"]).is_err());
+    }
+
+    #[test]
+    fn prefix_abbreviations_parse() {
+        // 唯一前缀推断：cli i / cli l / cli v / cli up / cli un
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "i"]).unwrap().command,
+            Command::Install { .. }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "ins"]).unwrap().command,
+            Command::Install { .. }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "l"]).unwrap().command,
+            Command::List
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "v"]).unwrap().command,
+            Command::Version
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "up"]).unwrap().command,
+            Command::Update
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "un"]).unwrap().command,
+            Command::Uninstall { .. }
+        ));
+    }
+
+    #[test]
+    fn ambiguous_prefix_rejected() {
+        // u 同时是 use/uninstall/update 的前缀 → 歧义报错
+        assert!(Cli::try_parse_from(["cli", "u"]).is_err());
+    }
+
+    #[test]
+    fn full_command_names_still_parse() {
+        // 完整命令名回归确认
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "use"]).unwrap().command,
+            Command::Use { .. }
+        ));
     }
 }
