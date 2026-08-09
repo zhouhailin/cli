@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 
-use crate::core::cache::{self, CacheManifest};
+use crate::core::cache;
 use crate::core::installer::{install_offline, InstallContext};
 use crate::core::interact::{is_interactive, select};
 use crate::core::offline;

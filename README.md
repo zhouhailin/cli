@@ -17,6 +17,7 @@
 - **PATH 自动注入**：安装后自动写入 shell 配置文件（`.zshrc` / `.bashrc`）
 - **调试日志**：`CLI_DEBUG=true` 或 `DEVKIT_DEBUG=true` 输出完整下载安装过程
 - **系统镜像下载**：查询并下载阿里云镜像的 Linux ISO（9 个系统，交互选择版本）
+- **离线部署**：`CLI_OFFLINE=true` 时仅使用本地缓存安装，配合 `cli download` 预热可在内网/离线环境部署
 
 ## 安装
 
@@ -64,11 +65,12 @@ cli use java 21
 
 所有子命令支持唯一前缀缩写（如 `cli i` 等价 `cli install`，`cli up` 等价 `cli update`）；前缀有歧义时（如 `cli u`）会报错，需补全命令名。
 
-### `cli install [tool]`
+### `cli install [tool] [version]`
 
 交互式安装工具，支持：`java`、`node`、`go`、`maven`、`mvnd`、`rust`。
 
 - **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / Rust (rustup) / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
+- **显式指定版本**：如 `cli install node v22.11.0` 直接安装该版本（不填则交互选择）
 - **java**：先选择 JDK 发行版，再选择大版本（8/11/17/21/25 视发行版而定），下载时实时解析最新补丁版本
 - **node / go / maven / mvnd**：从官方 API 拉取版本列表交互选择
 - **rust**：通过 rustup 安装到 `<根目录>/rustup` 与 `<根目录>/cargo`；交互选择阿里源（国内加速）或官方源，阿里源自动配置 `RUSTUP_UPDATE_ROOT`/`RUSTUP_DIST_SERVER` 镜像
@@ -83,6 +85,18 @@ cli use java 21
 - `cli uninstall java`：卸载 java（多版本时交互选择）
 - 无参数：交互选择工具和版本
 - 删除前会确认，取消则不动作；cache 中下载的压缩包保留
+
+### `cli download [tool] [version]`
+
+下载工具压缩包到缓存目录并更新版本清单（不安装），用于离线部署预热，支持：`java`、`node`、`go`、`maven`、`mvnd`。
+
+```bash
+cli download node v22.11.0   # 直接指定工具与版本
+cli download node            # 交互选择版本
+cli download                 # 交互选择工具与版本
+```
+
+下载完成后打印缓存就绪信息与清单路径；预热得到的缓存目录拷贝到离线机器即可配合离线模式安装。
 
 ### `cli update`
 
@@ -112,8 +126,8 @@ cli use node         # 交互选择
 查询并下载阿里云开发者镜像的操作系统 ISO（almalinux / ubuntu / centos / rockylinux / anolis / deepin / archlinux / openSUSE / centos-arch）：
 
 - `cli os list`：列出所有可用系统名
-- `cli os info <系统名>`：列出该系统全部镜像（版本 / 大小 / 更新时间 / 下载链接）
-- `cli os download <系统名> [--version <版本>] [-o <目录>]`：下载 ISO 到指定目录（默认当前目录）；不填 `--version` 时交互选择，非终端环境必须显式指定；文件已存在时交互选择覆盖 / 跳过 / 重命名（非终端自动跳过）
+- `cli os info [系统名]`：列出该系统全部镜像（版本 / 大小 / 更新时间 / 下载链接）；不填系统名时交互选择
+- `cli os download [系统名] [--version <版本>] [-o <目录>]`：下载 ISO 到指定目录（默认当前目录）；不填系统名时交互选择；不填 `--version` 时交互选择，非终端环境必须显式指定；文件已存在时交互选择覆盖 / 跳过 / 重命名（非终端自动跳过）
 - 下载完成后尝试按镜像记录中的 MD5SUMS 做校验；校验文件拉取失败或未收录时仅警告（API 数据不完整时降级）
 
 ### `cli version`
@@ -140,6 +154,8 @@ cli use node         # 交互选择
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
 | `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
 | `DEVKIT_MIRROR_API` | 阿里云镜像 API 基址覆盖（默认 `https://developer.aliyun.com/developer/api/mirror/image`），测试用 |
+| `CLI_OFFLINE=true` | 启用离线模式（不访问网络，仅使用本地缓存安装） |
+| `DEVKIT_OFFLINE=true` | 与 `CLI_OFFLINE` 等价，任一启用即离线 |
 | `RUSTUP_HOME` | rustup 主目录（安装 Rust 后注入 `<根目录>/rustup`） |
 | `CARGO_HOME` | cargo 主目录（安装 Rust 后注入 `<根目录>/cargo`） |
 
@@ -148,6 +164,32 @@ DEVKIT_ROOT=/data/devkit cli install java    # 安装到自定义目录
 CLI_DEBUG=true cli install node              # 观察完整下载过程
 DEVKIT_DEBUG=true cli install node            # 等价写法
 ```
+
+## 离线部署
+
+离线环境安装：设置 `CLI_OFFLINE=true`（或 `DEVKIT_OFFLINE=true`）后，cli 不访问网络，仅使用本地缓存安装（支持 java/node/go/maven/mvnd）。
+
+1. 在联网机器预热缓存（每个需要离线安装的工具+版本执行一次）：
+
+   ```bash
+   cli download node v22.11.0
+   ```
+
+2. 将缓存目录拷贝到离线机器（默认 `<devkit根>/cache`，可用 `DEVKIT_CACHE_DIR` 指定共享目录）：
+
+   ```bash
+   cp -r <缓存目录> <离线机器>
+   ```
+
+3. 离线机器安装：
+
+   ```bash
+   CLI_OFFLINE=true cli install node v22.11.0
+   ```
+
+离线安装时对缓存文件做 SHA-256 完整性校验；缓存缺失或损坏会提示用 `cli download` 预热。
+
+离线模式不支持 rust、os download、cli download、cli update。
 
 ## 目录结构
 

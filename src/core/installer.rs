@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 
-use crate::core::cache::{self, CacheManifest};
+use crate::core::cache;
 use crate::core::config::Config;
 use crate::core::download::{download, extract_archive, sha256_of, verify_sha256};
 use crate::core::links::set_current_link;
@@ -108,9 +108,8 @@ fn offline_archive_path(ctx: &InstallContext, tool: &str, version: &str) -> Resu
             archive_path.display()
         ));
     }
-    verify_sha256(&archive_path, &entry.sha256).map_err(|_| {
-        anyhow!("缓存文件损坏或不完整（sha256 不匹配），请重新预热")
-    })?;
+    verify_sha256(&archive_path, &entry.sha256)
+        .map_err(|_| anyhow!("缓存文件损坏或不完整（sha256 不匹配），请重新预热"))?;
     Ok(archive_path)
 }
 

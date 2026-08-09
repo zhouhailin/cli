@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::core::cache::{self, CacheManifest};
+use crate::core::cache;
 use crate::core::download::{download, sha256_of};
 use crate::core::interact::{is_interactive, select};
 use crate::core::offline;
@@ -74,8 +74,10 @@ pub fn run(tool: Option<String>, version: Option<String>) -> Result<()> {
         }
         "java" => {
             let vendors = crate::core::tools::java::vendors();
-            let labels: Vec<String> =
-                vendors.iter().map(|v| format!("{}（{}）", v.label, v.name)).collect();
+            let labels: Vec<String> = vendors
+                .iter()
+                .map(|v| format!("{}（{}）", v.label, v.name))
+                .collect();
             let idx = if is_interactive() && version.is_none() {
                 select("请选择 Java 发行版", &labels)?
             } else {
@@ -87,7 +89,7 @@ pub fn run(tool: Option<String>, version: Option<String>) -> Result<()> {
                 .map(|s| s.to_string())
                 .collect();
             let v = pick_version(&versions, version.as_deref())?;
-            let url = crate::core::tools::java::resolve_url(&vendor.name, &v, &platform)?;
+            let url = crate::core::tools::java::resolve_url(vendor.name, &v, &platform)?;
             // java 各发行版 sha 获取路径差异大，统一不传官方 sha（下载后清单记录实际哈希）
             fetch_and_cache(&paths, &tool, &v, &url, None)?;
         }
@@ -134,13 +136,26 @@ pub fn fetch_and_cache(
         .ok_or_else(|| anyhow!("无法从 URL 解析文件名: {url}"))?;
     let archive_path = cache_dir.join(file);
     // 预热场景总是重新下载覆盖，保证拿到最新文件
-    download(url, &archive_path, official_sha, &format!("{tool} {version}"))?;
+    download(
+        url,
+        &archive_path,
+        official_sha,
+        &format!("{tool} {version}"),
+    )?;
     let actual = sha256_of(&archive_path)?;
     let mut manifest = cache::load(&cache_dir).unwrap_or_default();
     cache::add(&mut manifest, tool, version, file, &actual);
     cache::save(&cache_dir, &manifest)?;
-    println!("缓存就绪: {} ({}) -> {}", tool, version, archive_path.display());
-    println!("已更新版本清单: {}", cache_dir.join("versions.json").display());
+    println!(
+        "缓存就绪: {} ({}) -> {}",
+        tool,
+        version,
+        archive_path.display()
+    );
+    println!(
+        "已更新版本清单: {}",
+        cache_dir.join("versions.json").display()
+    );
     Ok(())
 }
 
