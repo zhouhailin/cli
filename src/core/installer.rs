@@ -396,9 +396,13 @@ mod tests {
         cache_dir.join(file).display().to_string()
     }
 
+    #[serial(env)]
     #[test]
     fn install_offline_installs_from_cache_without_network() {
-        let (mut ctx, _dir) = test_ctx();
+        let (mut ctx, dir) = test_ctx();
+        // 隔离 rc 注入环境（install_offline 内部 inject=true），避免污染真实 HOME
+        std::env::set_var("HOME", dir.path());
+        std::env::set_var("SHELL", "/bin/zsh");
         let body = make_tar_gz_bytes();
         seed_cache(
             &ctx,

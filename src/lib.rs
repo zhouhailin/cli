@@ -33,6 +33,8 @@ pub enum Command {
     Install {
         /// 工具名（不填则交互选择）
         tool: Option<String>,
+        /// 版本（不填则交互选择；离线模式必填）
+        version: Option<String>,
     },
     /// 切换工具激活版本
     Use {
@@ -83,7 +85,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Version => commands::version::run(),
         Command::List => commands::list::run(),
-        Command::Install { tool } => commands::install::run(tool),
+        Command::Install { tool, version } => commands::install::run(tool, version),
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
         Command::Uninstall { tool, version } => commands::uninstall::run(tool, version),
         Command::Update => commands::self_update::run(),
