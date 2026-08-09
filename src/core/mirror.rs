@@ -97,9 +97,8 @@ pub fn find_image_by_version<'a>(
 
 /// API 基址：DEVKIT_MIRROR_API 环境变量覆盖（测试钩子），默认阿里云开发者镜像 API
 pub fn api_base() -> String {
-    std::env::var("DEVKIT_MIRROR_API").unwrap_or_else(|_| {
-        "https://developer.aliyun.com/developer/api/mirror/image".to_string()
-    })
+    std::env::var("DEVKIT_MIRROR_API")
+        .unwrap_or_else(|_| "https://developer.aliyun.com/developer/api/mirror/image".to_string())
 }
 
 pub fn fetch_all_names() -> Result<Vec<String>> {
@@ -175,9 +174,10 @@ mod tests {
 
     #[test]
     fn parse_names_response_ok() {
-        let names =
-            parse_names_response(r#"{"success":true,"message":"查询成功","data":["almalinux","ubuntu"]}"#)
-                .unwrap();
+        let names = parse_names_response(
+            r#"{"success":true,"message":"查询成功","data":["almalinux","ubuntu"]}"#,
+        )
+        .unwrap();
         assert_eq!(names, vec!["almalinux", "ubuntu"]);
     }
 
@@ -293,7 +293,7 @@ mod tests {
         let sums = parse_md5sums("abc123  a.iso\nxyz  b.iso\n");
         assert_eq!(sums.get("a.iso"), Some(&"abc123".to_string()));
         assert_eq!(sums.get("b.iso"), Some(&"xyz".to_string()));
-        assert!(sums.get("c.iso").is_none());
+        assert!(!sums.contains_key("c.iso"));
     }
 
     #[test]

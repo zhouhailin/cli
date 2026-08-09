@@ -16,6 +16,7 @@
 - **跨平台**：macOS / Linux / Windows（x86_64 / aarch64）
 - **PATH 自动注入**：安装后自动写入 shell 配置文件（`.zshrc` / `.bashrc`）
 - **调试日志**：`CLI_DEBUG=true` 或 `DEVKIT_DEBUG=true` 输出完整下载安装过程
+- **系统镜像下载**：查询并下载阿里云镜像的 Linux ISO（9 个系统，交互选择版本）
 
 ## 安装
 
@@ -105,6 +106,15 @@ cli use node         # 交互选择
 
 列出所有已安装工具与版本，标记当前激活版本。
 
+### `cli os <subcommand>`
+
+查询并下载阿里云开发者镜像的操作系统 ISO（almalinux / ubuntu / centos / rockylinux / anolis / deepin / archlinux / openSUSE / centos-arch）：
+
+- `cli os list`：列出所有可用系统名
+- `cli os info <系统名>`：列出该系统全部镜像（版本 / 大小 / 更新时间 / 下载链接）
+- `cli os download <系统名> [--version <版本>] [-o <目录>]`：下载 ISO 到指定目录（默认当前目录）；不填 `--version` 时交互选择，非终端环境必须显式指定；文件已存在时交互选择覆盖 / 跳过 / 重命名（非终端自动跳过）
+- 下载完成后尝试按镜像记录中的 MD5SUMS 做校验；校验文件拉取失败或未收录时仅警告（API 数据不完整时降级）
+
 ### `cli version`
 
 显示版本号、平台与根目录。
@@ -128,6 +138,7 @@ cli use node         # 交互选择
 | `DEVKIT_CACHE_DIR` | 压缩包缓存目录（默认 `<根目录>/cache`），便于离线分发 |
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
 | `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
+| `DEVKIT_MIRROR_API` | 阿里云镜像 API 基址覆盖（默认 `https://developer.aliyun.com/developer/api/mirror/image`），测试用 |
 
 ```bash
 DEVKIT_ROOT=/data/devkit cli install java    # 安装到自定义目录

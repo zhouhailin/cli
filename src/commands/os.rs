@@ -51,11 +51,7 @@ pub fn run_info(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn run_download(
-    name: &str,
-    version: Option<&str>,
-    output_dir: &str,
-) -> Result<()> {
+pub fn run_download(name: &str, version: Option<&str>, output_dir: &str) -> Result<()> {
     let images = mirror::fetch_images(name)?;
     if images.is_empty() {
         return Err(anyhow!("系统 {name} 暂无可用镜像"));
@@ -98,7 +94,10 @@ pub fn run_download(
             println!("目标文件已存在，跳过: {}", dest.display());
             return Ok(());
         }
-        let idx = select("文件已存在，请选择处理方式", &["覆盖下载", "跳过", "重命名"])?;
+        let idx = select(
+            "文件已存在，请选择处理方式",
+            &["覆盖下载", "跳过", "重命名"],
+        )?;
         match idx {
             0 => {}
             1 => {
@@ -114,11 +113,7 @@ pub fn run_download(
             }
         }
     }
-    println!(
-        "准备下载 {name} {} → {}",
-        selected.version,
-        dest.display()
-    );
+    println!("准备下载 {name} {} → {}", selected.version, dest.display());
     println!(
         "大小: {} | 链接: {}",
         mirror::format_size(selected.size),
