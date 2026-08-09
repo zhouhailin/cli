@@ -66,23 +66,42 @@ pub fn resolve_temurin_url(version: &str, platform: &Platform) -> String {
     )
 }
 
-/// 从 Azul API JSON 中提取下载 URL（测试提供样例 JSON）
+/// 从 Azul API JSON（数组）中提取下载 URL：过滤 JavaFX 捆绑变体（-fx-），取首个非 fx 包
 pub fn parse_azul_download_url(json: &str) -> Result<String> {
     #[derive(serde::Deserialize)]
-    struct AzulResponse {
-        package_url: Option<String>,
+    struct AzulItem {
+        name: Option<String>,
+        download_url: Option<String>,
     }
-    let parsed: AzulResponse =
+    let parsed: Vec<AzulItem> =
         serde_json::from_str(json).map_err(|e| anyhow!("解析 Azul API 响应失败: {e}"))?;
     parsed
-        .package_url
-        .ok_or_else(|| anyhow!("Azul API 响应缺少 package_url"))
+        .into_iter()
+        .filter(|i| {
+            i.name
+                .as_deref()
+                .map(|n| !n.contains("-fx-"))
+                .unwrap_or(true)
+        })
+        .find_map(|i| i.download_url)
+        .ok_or_else(|| anyhow!("Azul API 响应中未找到非 JavaFX 下载地址"))
 }
 
 /// 解析发行版下载 URL；Temurin 直接生成，其余通过各自 API（Zulu/BellSoft/GitHub Releases）
 pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<String> {
     match vendor {
-        "temurin" => Ok(resolve_temurin_url(version, platform)),
+        "temurin" => {
+            // Adoptium 仅提供 Java 8 的 mac x64 构建，arm64 下载会 404，提前拦截给出明确提示
+            if matches!(platform.os, crate::core::platform::Os::MacOs)
+                && matches!(platform.arch, crate::core::platform::Arch::Aarch64)
+                && version == "8"
+            {
+                return Err(anyhow!(
+                            "Adoptium 未提供 macOS arm64 的 Java 8 构建（仅 x64），请选择 Temurin x64 或其他发行版"
+                        ));
+            }
+            Ok(resolve_temurin_url(version, platform))
+        }
         "zulu" => {
             let os = match platform.os {
                 crate::core::platform::Os::MacOs => "macos",
@@ -93,8 +112,9 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
                 crate::core::platform::Arch::X86_64 => "x86_64",
                 crate::core::platform::Arch::Aarch64 => "aarch64",
             };
+            // v1.1 已下线（404），改用 v1；返回字段为 download_url（数组）
             let api = format!(
-                "https://api.azul.com/metadata/v1.1/zulu/packages/?java_version={version}&os={os}&arch={arch}&archive_type=tar.gz&java_package_type=jdk&latest=true&release_status=ga&availability_types=CA"
+                "https://api.azul.com/metadata/v1/zulu/packages/?java_version={version}&os={os}&arch={arch}&archive_type=tar.gz&java_package_type=jdk&latest=true&release_status=ga&availability_types=CA"
             );
             let body = crate::core::download::http_get_string(&api)?;
             parse_azul_download_url(&body)
@@ -105,10 +125,8 @@ pub fn resolve_url(vendor: &str, version: &str, platform: &Platform) -> Result<S
                 crate::core::platform::Os::Linux => "linux",
                 crate::core::platform::Os::Windows => "windows",
             };
-            let arch = match platform.arch {
-                crate::core::platform::Arch::X86_64 => "x86_64",
-                crate::core::platform::Arch::Aarch64 => "aarch64",
-            };
+            // API 仅接受 x86/arm（x86_64/aarch64 会报 400）
+            let arch = liberica_arch(platform);
             let api = format!(
                 "https://api.bell-sw.com/v1/liberica/releases?version-feature={version}&os={os}&arch={arch}&package-type=tar.gz&bitness=64&release-type=all"
             );
@@ -309,18 +327,49 @@ pub fn github_repo(vendor: &str, version: &str) -> Result<String> {
     }
 }
 
-/// 从 BellSoft API JSON 提取首个 downloadUrl
+/// Liberica API 的 arch 参数值（仅接受 x86/arm，x86_64/aarch64 会报 400）
+fn liberica_arch(platform: &Platform) -> &'static str {
+    match platform.arch {
+        crate::core::platform::Arch::X86_64 => "x86",
+        crate::core::platform::Arch::Aarch64 => "arm",
+    }
+}
+
+/// 从 BellSoft API JSON 中选取最新版本的 JDK 标准包（过滤 jre/full/lite/headless 变体）
 pub fn parse_liberica_download_url(json: &str) -> Result<String> {
     #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct LibericaItem {
+        version: Option<String>,
         download_url: Option<String>,
     }
     let parsed: Vec<LibericaItem> =
         serde_json::from_str(json).map_err(|e| anyhow!("解析 Liberica API 响应失败: {e}"))?;
     parsed
         .into_iter()
-        .find_map(|i| i.download_url)
-        .ok_or_else(|| anyhow!("Liberica API 响应中未找到下载地址"))
+        .filter(|i| {
+            let url = i.download_url.as_deref().unwrap_or("");
+            let lower = url.to_lowercase();
+            lower.contains("jdk")
+                && !lower.contains("jre")
+                && !lower.contains("-full")
+                && !lower.contains("-lite")
+                && !lower.contains("-headless")
+        })
+        .max_by(|a, b| {
+            let va = a.version.as_deref().unwrap_or("");
+            let vb = b.version.as_deref().unwrap_or("");
+            liberica_version_compare(va, vb)
+        })
+        .and_then(|i| i.download_url)
+        .ok_or_else(|| anyhow!("Liberica API 响应中未找到 JDK 标准包下载地址"))
+}
+
+/// 比较 Liberica 版本号（忽略 +build 后缀）
+fn liberica_version_compare(a: &str, b: &str) -> std::cmp::Ordering {
+    let va = a.split('+').next().unwrap_or("");
+    let vb = b.split('+').next().unwrap_or("");
+    crate::core::versions::compare(va, vb)
 }
 
 /// 从 GitHub Releases JSON 中匹配当前平台/架构的 JDK 资产下载地址
@@ -492,32 +541,63 @@ mod tests {
     }
 
     #[test]
-    fn parse_azul_download_url_extracts_package_url() {
-        let json = r#"{
-          "package_url": "https://cdn.azul.com/zulu/bin/zulu17.52.17-ca-jdk17.0.12-macosx_aarch64.tar.gz"
-        }"#;
+    fn parse_azul_download_url_skips_fx_variant() {
+        // v1 API 返回数组：fx（JavaFX 捆绑）在前，必须过滤取非 fx 标准包
+        let json = r#"[
+          {"name":"zulu21.52.15-ca-fx-jdk21.0.12-macosx_aarch64.tar.gz","download_url":"https://cdn.azul.com/zulu/bin/zulu21.52.15-ca-fx-jdk21.0.12-macosx_aarch64.tar.gz"},
+          {"name":"zulu21.52.15-ca-jdk21.0.12-macosx_aarch64.tar.gz","download_url":"https://cdn.azul.com/zulu/bin/zulu21.52.15-ca-jdk21.0.12-macosx_aarch64.tar.gz"}
+        ]"#;
         assert_eq!(
             parse_azul_download_url(json).unwrap(),
-            "https://cdn.azul.com/zulu/bin/zulu17.52.17-ca-jdk17.0.12-macosx_aarch64.tar.gz"
+            "https://cdn.azul.com/zulu/bin/zulu21.52.15-ca-jdk21.0.12-macosx_aarch64.tar.gz"
         );
+    }
+
+    #[test]
+    fn parse_azul_download_url_rejects_all_fx() {
+        let json = r#"[
+          {"name":"zulu21.52.15-ca-fx-jdk21.0.12-macosx_aarch64.tar.gz","download_url":"https://cdn.azul.com/zulu/bin/fx.tar.gz"}
+        ]"#;
+        let err = parse_azul_download_url(json).unwrap_err();
+        assert!(err.to_string().contains("JavaFX"));
     }
 
     #[test]
     fn parse_azul_download_url_rejects_empty() {
-        let err = parse_azul_download_url("{}").unwrap_err();
-        assert!(err.to_string().contains("package_url"));
+        let err = parse_azul_download_url("[]").unwrap_err();
+        assert!(err.to_string().contains("非 JavaFX"));
+        // 非法 JSON 也报错
+        assert!(parse_azul_download_url("nope").is_err());
     }
 
     #[test]
-    fn parse_liberica_download_url_extracts_first_url() {
+    fn parse_liberica_download_url_picks_latest_standard_jdk() {
+        // API 按版本升序返回且混排 jre/full/lite/headless，必须过滤后取最新标准 JDK 包
         let json = r#"[
-          {"download_url":"https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-macos-aarch64.tar.gz"},
-          {"download_url":"https://download.bell-sw.com/java/21.0.3/bellsoft-jdk21.0.3-macos-aarch64.tar.gz"}
+          {"version":"21.0.1+12","downloadUrl":"https://github.com/bell-sw/Liberica/releases/download/21.0.1+12/bellsoft-jdk21.0.1+12-macos-aarch64-full.tar.gz"},
+          {"version":"21.0.1+12","downloadUrl":"https://github.com/bell-sw/Liberica/releases/download/21.0.1+12/bellsoft-jre21.0.1+12-macos-aarch64.tar.gz"},
+          {"version":"21.0.4+9","downloadUrl":"https://github.com/bell-sw/Liberica/releases/download/21.0.4+9/bellsoft-jdk21.0.4+9-macos-aarch64-lite.tar.gz"},
+          {"version":"21.0.12+10","downloadUrl":"https://github.com/bell-sw/Liberica/releases/download/21.0.12+10/bellsoft-jdk21.0.12+10-macos-aarch64-headless.tar.gz"},
+          {"version":"21.0.12+10","downloadUrl":"https://github.com/bell-sw/Liberica/releases/download/21.0.12+10/bellsoft-jdk21.0.12+10-macos-aarch64.tar.gz"}
         ]"#;
         assert_eq!(
             parse_liberica_download_url(json).unwrap(),
-            "https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-macos-aarch64.tar.gz"
+            "https://github.com/bell-sw/Liberica/releases/download/21.0.12+10/bellsoft-jdk21.0.12+10-macos-aarch64.tar.gz"
         );
+    }
+
+    #[test]
+    fn liberica_arch_maps_platform_archs() {
+        let mac = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        assert_eq!(liberica_arch(&mac), "arm");
+        let linux = Platform {
+            os: crate::core::platform::Os::Linux,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        assert_eq!(liberica_arch(&linux), "x86");
     }
 
     #[test]
@@ -584,6 +664,23 @@ mod tests {
         };
         let err = resolve_url("dragonwell", "21", &p).unwrap_err();
         assert!(err.to_string().contains("不提供 macOS 构建"));
+    }
+
+    #[test]
+    fn resolve_url_rejects_temurin_8_on_macos_arm64() {
+        // Adoptium 仅提供 Java 8 的 mac x64 构建，arm64 下载会 404，须提前拦截
+        let p = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::Aarch64,
+        };
+        let err = resolve_url("temurin", "8", &p).unwrap_err();
+        assert!(err.to_string().contains("macOS arm64 的 Java 8"));
+        // 非 arm64 平台不受影响
+        let x64 = Platform {
+            os: crate::core::platform::Os::MacOs,
+            arch: crate::core::platform::Arch::X86_64,
+        };
+        assert!(resolve_url("temurin", "8", &x64).is_ok());
     }
 
     #[test]
