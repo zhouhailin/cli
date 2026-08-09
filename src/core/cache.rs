@@ -36,10 +36,7 @@ pub fn save(cache_dir: &Path, manifest: &CacheManifest) -> Result<()> {
 }
 
 pub fn find<'a>(manifest: &'a CacheManifest, tool: &str, version: &str) -> Option<&'a CacheEntry> {
-    manifest
-        .get(tool)?
-        .iter()
-        .find(|e| e.version == version)
+    manifest.get(tool)?.iter().find(|e| e.version == version)
 }
 
 pub fn add(manifest: &mut CacheManifest, tool: &str, version: &str, file: &str, sha256: &str) {
@@ -72,7 +69,13 @@ mod tests {
     fn save_then_load_roundtrip() {
         let dir = tempdir().unwrap();
         let mut m = CacheManifest::new();
-        add(&mut m, "node", "v22.11.0", "node-v22.11.0-linux-x64.tar.gz", "abc123");
+        add(
+            &mut m,
+            "node",
+            "v22.11.0",
+            "node-v22.11.0-linux-x64.tar.gz",
+            "abc123",
+        );
         save(dir.path(), &m).unwrap();
         let loaded = load(dir.path()).unwrap();
         let e = find(&loaded, "node", "v22.11.0").unwrap();

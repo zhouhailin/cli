@@ -42,7 +42,8 @@ fn seed_cache(root: &std::path::Path, tool: &str, version: &str, file: &str, bod
         std::io::copy(&mut f, &mut h).unwrap();
         format!("{:x}", h.finalize())
     };
-    let manifest = serde_json::json!({ tool: [{ "version": version, "file": file, "sha256": sha }] });
+    let manifest =
+        serde_json::json!({ tool: [{ "version": version, "file": file, "sha256": sha }] });
     std::fs::write(cache_dir.join("versions.json"), manifest.to_string()).unwrap();
 }
 
@@ -68,10 +69,8 @@ fn offline_install_succeeds_from_cache() {
         .assert()
         .success()
         .stdout(predicate::str::contains("离线模式"));
-    let config: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(root.join("config.json")).unwrap(),
-    )
-    .unwrap();
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(root.join("config.json")).unwrap()).unwrap();
     assert_eq!(config["installed"]["node"][0], "v22.11.0");
     assert!(root.join("node/v22.11.0/hello.txt").exists());
 }

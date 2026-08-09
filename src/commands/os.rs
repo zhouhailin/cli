@@ -37,7 +37,9 @@ fn resolve_name(name: Option<&str>) -> Result<String> {
         return Ok(n.to_string());
     }
     if !is_interactive() {
-        return Err(anyhow!("非终端环境请指定系统名，例如: cli os info <系统名>"));
+        return Err(anyhow!(
+            "非终端环境请指定系统名，例如: cli os info <系统名>"
+        ));
     }
     let names = mirror::fetch_all_names()?;
     if names.is_empty() {
