@@ -7,7 +7,7 @@
 
 ## 功能特性
 
-- **多工具支持**：Java（6 大发行版）、Node.js、Go、Maven
+- **多工具支持**：Java（6 大发行版）、Node.js、Go、Maven、Rust (rustup)
 - **多版本共存**：同一工具可安装多个版本，`use` 命令一键切换
 - **实时版本解析**：下载地址与最新补丁版本每次运行时从官方 API 拉取，永远装到最新
 - **官方渠道直链**：华为云镜像、阿里 OSS、阿里云 Node.js 镜像、Apache 等官方源，国内可达
@@ -42,7 +42,7 @@ sudo mv cli-macos-arm64 /usr/local/bin/cli
 ## 快速开始
 
 ```bash
-# 不带参数：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / 自更新）
+# 不带参数：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / Rust (rustup) / 自更新）
 cli install
 
 # 交互式安装 Java（选择发行版与版本）
@@ -66,11 +66,12 @@ cli use java 21
 
 ### `cli install [tool]`
 
-交互式安装工具，支持：`java`、`node`、`go`、`maven`、`mvnd`。
+交互式安装工具，支持：`java`、`node`、`go`、`maven`、`mvnd`、`rust`。
 
-- **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
+- **不带参数**：弹出工具列表交互选择（Java / Node.js / Go / Maven / Maven Daemon (mvnd) / Rust (rustup) / 自更新）；非终端环境会提示 `请指定工具名，例如: cli install java`
 - **java**：先选择 JDK 发行版，再选择大版本（8/11/17/21/25 视发行版而定），下载时实时解析最新补丁版本
 - **node / go / maven / mvnd**：从官方 API 拉取版本列表交互选择
+- **rust**：通过 rustup 安装到 `<根目录>/rustup` 与 `<根目录>/cargo`；交互选择阿里源（国内加速）或官方源，阿里源自动配置 `RUSTUP_UPDATE_ROOT`/`RUSTUP_DIST_SERVER` 镜像
 
 安装流程：下载（带重试）→ SHA-256 校验（毕昇）→ 解压 → 剥离单顶层目录 → 注册配置 → 注入 PATH。
 
@@ -139,6 +140,8 @@ cli use node         # 交互选择
 | `CLI_DEBUG=true` | 输出调试日志到 stderr：下载地址、文件字节数、SHA-256 校验、解压与安装路径等 |
 | `DEVKIT_DEBUG=true` | 与 `CLI_DEBUG` 等价，任一为 `true` 即启用调试日志 |
 | `DEVKIT_MIRROR_API` | 阿里云镜像 API 基址覆盖（默认 `https://developer.aliyun.com/developer/api/mirror/image`），测试用 |
+| `RUSTUP_HOME` | rustup 主目录（安装 Rust 后注入 `<根目录>/rustup`） |
+| `CARGO_HOME` | cargo 主目录（安装 Rust 后注入 `<根目录>/cargo`） |
 
 ```bash
 DEVKIT_ROOT=/data/devkit cli install java    # 安装到自定义目录
