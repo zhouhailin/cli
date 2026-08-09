@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::{anyhow, Result};
 
 use crate::core::download::http_get_string;
@@ -40,6 +42,24 @@ pub fn generate_settings_xml(local_repo: &str, mirror_url: &str) -> String {
     )
 }
 
+/// 写入镜像 settings.xml；目标已存在（发行包自带/用户改过）时先备份为 settings.xml.backup，
+/// 返回是否执行了备份
+pub fn write_settings_with_backup(tool_dir: &Path, settings: &str) -> Result<bool> {
+    let conf = tool_dir.join("conf");
+    std::fs::create_dir_all(&conf)?;
+    let settings_path = conf.join("settings.xml");
+    let backup_path = conf.join("settings.xml.backup");
+    let backed_up = if settings_path.exists() {
+        std::fs::copy(&settings_path, &backup_path)
+            .map_err(|e| anyhow!("备份 settings.xml 失败: {e}"))?;
+        true
+    } else {
+        false
+    };
+    std::fs::write(&settings_path, settings)?;
+    Ok(backed_up)
+}
+
 pub fn install(version_hint: Option<&str>) -> Result<()> {
     let body = http_get_string("https://archive.apache.org/dist/maven/maven-3/")?;
     let list = parse_maven_versions(&body)?;
@@ -62,14 +82,16 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
     }
     let mut ctx = InstallContext::load()?;
     install_archive(&url, None, "maven", &version, &mut ctx, false)?;
-    // 写入阿里云镜像 settings.xml
+    // 写入阿里云镜像 settings.xml（原文件先备份为 settings.xml.backup）
     let tool_dir = ctx.paths.tool_dir("maven", &version);
     let local_repo = ctx.paths.root().join("maven").join("repository");
     let settings = generate_settings_xml(
         &local_repo.to_string_lossy(),
         "https://maven.aliyun.com/repository/public",
     );
-    std::fs::write(tool_dir.join("conf").join("settings.xml"), settings)?;
+    if write_settings_with_backup(&tool_dir, &settings)? {
+        println!("已备份原始 settings.xml 为 settings.xml.backup");
+    }
     let rc_file = crate::core::shell::rc_file_for_shell()?;
     crate::core::shell::inject_path(&rc_file, &ctx.paths.current_link("maven").join("bin"))?;
     crate::core::shell::print_activation_hint()?;
@@ -115,5 +137,42 @@ mod tests {
         assert!(xml.contains("aliyunmaven"));
         assert!(xml.contains("https://maven.aliyun.com/repository/public"));
         assert!(xml.contains("<localRepository>/root/repo</localRepository>"));
+    }
+
+    #[test]
+    fn write_settings_with_backup_backs_up_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool_dir = dir.path().join("apache-maven-3.9.9");
+        let conf = tool_dir.join("conf");
+        std::fs::create_dir_all(&conf).unwrap();
+        std::fs::write(
+            conf.join("settings.xml"),
+            "<settings><!-- default --></settings>",
+        )
+        .unwrap();
+        let backed_up =
+            write_settings_with_backup(&tool_dir, "<settings><mirror/></settings>").unwrap();
+        assert!(backed_up);
+        assert_eq!(
+            std::fs::read_to_string(conf.join("settings.xml")).unwrap(),
+            "<settings><mirror/></settings>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(conf.join("settings.xml.backup")).unwrap(),
+            "<settings><!-- default --></settings>"
+        );
+    }
+
+    #[test]
+    fn write_settings_with_backup_skips_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool_dir = dir.path().join("apache-maven-3.9.9");
+        let backed_up = write_settings_with_backup(&tool_dir, "<settings/>").unwrap();
+        assert!(!backed_up);
+        assert_eq!(
+            std::fs::read_to_string(tool_dir.join("conf").join("settings.xml")).unwrap(),
+            "<settings/>"
+        );
+        assert!(!tool_dir.join("conf").join("settings.xml.backup").exists());
     }
 }
