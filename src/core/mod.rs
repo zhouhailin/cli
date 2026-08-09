@@ -1,3 +1,4 @@
+pub mod mirror;
 pub mod config;
 pub mod debug;
 pub mod download;
