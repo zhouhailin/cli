@@ -2,6 +2,8 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
+use crate::core::download::http_get_string;
+
 /// 阿里云开发者镜像 API 单条镜像记录（未知字段忽略，可空字段 Option 容错）
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +94,23 @@ pub fn find_image_by_version<'a>(
     images.iter().find(|i| i.version == version)
 }
 
+/// API 基址：DEVKIT_MIRROR_API 环境变量覆盖（测试钩子），默认阿里云开发者镜像 API
+pub fn api_base() -> String {
+    std::env::var("DEVKIT_MIRROR_API").unwrap_or_else(|_| {
+        "https://developer.aliyun.com/developer/api/mirror/image".to_string()
+    })
+}
+
+pub fn fetch_all_names() -> Result<Vec<String>> {
+    let body = http_get_string(&format!("{}/findAllName", api_base()))?;
+    parse_names_response(&body)
+}
+
+pub fn fetch_images(name: &str) -> Result<Vec<MirrorImage>> {
+    let body = http_get_string(&format!("{}/findByNameOrVersion?name={name}", api_base()))?;
+    parse_images_response(&body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +182,53 @@ mod tests {
         let images = parse_images_response(IMAGE_JSON).unwrap();
         assert!(find_image_by_version(&images, "9(latest-aarch64-boot)").is_some());
         assert!(find_image_by_version(&images, "8").is_none());
+    }
+
+    use serial_test::serial;
+
+    #[cfg(test)]
+    fn mock_server(responses: Vec<(u16, String)>) -> String {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for (status, body) in responses {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let reason = if status == 200 { "OK" } else { "Error" };
+                let resp = format!(
+                    "HTTP/1.1 {status} {reason}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    #[test]
+    #[serial]
+    fn fetch_all_names_hits_api() {
+        let base = mock_server(vec![(
+            200,
+            r#"{"success":true,"message":"查询成功","data":["almalinux","ubuntu"]}"#.to_string(),
+        )]);
+        std::env::set_var("DEVKIT_MIRROR_API", &base);
+        let names = fetch_all_names().unwrap();
+        std::env::remove_var("DEVKIT_MIRROR_API");
+        assert_eq!(names, vec!["almalinux", "ubuntu"]);
+    }
+
+    #[test]
+    #[serial]
+    fn fetch_images_hits_api() {
+        let base = mock_server(vec![(200, IMAGE_JSON.to_string())]);
+        std::env::set_var("DEVKIT_MIRROR_API", &base);
+        let images = fetch_images("almalinux").unwrap();
+        std::env::remove_var("DEVKIT_MIRROR_API");
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].version, "9(latest-aarch64-boot)");
     }
 }
