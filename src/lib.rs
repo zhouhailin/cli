@@ -50,6 +50,33 @@ pub enum Command {
     },
     /// 自更新：检查并升级到 GitHub Releases 最新版
     Update,
+    /// 操作系统镜像查询与下载（阿里云镜像）
+    Os {
+        #[command(subcommand)]
+        subcommand: OsCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum OsCommand {
+    /// 列出阿里云镜像支持的系统名
+    List,
+    /// 查询系统全部镜像（版本/大小/链接）
+    Info {
+        /// 系统名（如 almalinux、ubuntu）
+        name: String,
+    },
+    /// 下载系统 ISO 镜像
+    Download {
+        /// 系统名（如 almalinux、ubuntu）
+        name: String,
+        /// 精确指定镜像版本（version 字段）；不填则交互选择
+        #[arg(long)]
+        version: Option<String>,
+        /// 下载保存目录（默认当前目录）
+        #[arg(short, long, default_value = ".")]
+        output_dir: String,
+    },
 }
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
@@ -60,6 +87,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
         Command::Uninstall { tool, version } => commands::uninstall::run(tool, version),
         Command::Update => commands::self_update::run(),
+        Command::Os { subcommand } => commands::os::run(subcommand),
     }
 }
 
@@ -122,6 +150,39 @@ mod tests {
         assert!(matches!(
             Cli::try_parse_from(["cli", "use"]).unwrap().command,
             Command::Use { .. }
+        ));
+    }
+
+    #[test]
+    fn os_subcommands_parse() {
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "os", "list"]).unwrap().command,
+            Command::Os {
+                subcommand: OsCommand::List
+            }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "os", "info", "almalinux"])
+                .unwrap()
+                .command,
+            Command::Os {
+                subcommand: OsCommand::Info { .. }
+            }
+        ));
+        // 前缀缩写：o → os，l → list，i → info，d → download
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "o", "l"]).unwrap().command,
+            Command::Os {
+                subcommand: OsCommand::List
+            }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["cli", "o", "d", "ubuntu", "--version", "x", "-o", "/tmp"])
+                .unwrap()
+                .command,
+            Command::Os {
+                subcommand: OsCommand::Download { .. }
+            }
         ));
     }
 }
