@@ -141,6 +141,17 @@ pub fn clean_residual_hint(root: &Path) -> String {
     )
 }
 
+/// 注册 rust 到 config.json 供 `cli list` 显示（仅展示，不参与 use/uninstall）
+pub fn register_in_config(root: &Path) -> Result<()> {
+    use crate::core::config::Config;
+    use crate::core::paths::DevkitPaths;
+
+    let paths = DevkitPaths::with_root(root.to_path_buf());
+    let mut config = Config::load(&paths)?;
+    config.add_installed("rust", "rustup");
+    config.save(&paths)
+}
+
 /// 安装 Rust（rustup）：选择源 → 执行脚本 → 持久化环境变量与 PATH
 pub fn install(_hint: Option<&str>) -> Result<()> {
     #[cfg(windows)]
@@ -201,6 +212,10 @@ pub fn install(_hint: Option<&str>) -> Result<()> {
         }
         if let Err(e) = inject_path(&rc, &cargo_home_dir(root).join("bin")) {
             eprintln!("警告: PATH 写入 {} 失败: {e}，请手动配置", rc.display());
+        }
+        // 注册到 config.json 供 cli list 显示（失败仅警告，不阻断已完成的安装）
+        if let Err(e) = register_in_config(root) {
+            eprintln!("警告: 写入 config.json 失败: {e}，cli list 将不显示 rust");
         }
         println!("Rust (rustup) 安装完成（{}）", source.label());
         print_activation_hint()?;
@@ -310,6 +325,28 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("rustup/bin")).unwrap();
         std::fs::write(dir.path().join("rustup/bin/rustup"), "").unwrap();
         assert!(install_residual(dir.path()).is_none());
+    }
+
+    #[test]
+    fn register_in_config_records_rust() {
+        use crate::core::config::Config;
+        use crate::core::paths::DevkitPaths;
+
+        let dir = tempfile::tempdir().unwrap();
+        register_in_config(dir.path()).unwrap();
+        let paths = DevkitPaths::with_root(dir.path().to_path_buf());
+        let config = Config::load(&paths).unwrap();
+        assert_eq!(
+            config.installed.get("rust"),
+            Some(&vec!["rustup".to_string()])
+        );
+        // 幂等：重复注册不产生重复条目
+        register_in_config(dir.path()).unwrap();
+        let config = Config::load(&paths).unwrap();
+        assert_eq!(
+            config.installed.get("rust"),
+            Some(&vec!["rustup".to_string()])
+        );
     }
 
     #[test]

@@ -53,6 +53,10 @@ fn rust_install_non_tty_defaults_official_source() {
     )));
     // 官方源不注入镜像变量
     assert!(!rc.contains("RUSTUP_UPDATE_ROOT"));
+    // 安装成功注册到 config.json，cli list 可显示
+    let config: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(root.join("config.json")).unwrap()).unwrap();
+    assert_eq!(config["installed"]["rust"][0], "rustup");
 }
 
 #[test]
