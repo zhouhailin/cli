@@ -60,12 +60,16 @@ impl RustSource {
     }
 }
 
-/// 构建安装命令：curl 脚本 | sh 非交互安装；--no-modify-path 保证 rc 由 cli 统一注入
+/// 构建安装命令：curl 脚本 | sh 非交互安装；--no-modify-path 保证 rc 由 cli 统一注入。
+/// 测试钩子指向 http:// 时放宽 --proto 限制（--proto '=https' 会拒绝 http）
 pub fn install_command(source: RustSource) -> String {
-    format!(
-        "curl --proto '=https' --tlsv1.2 -sSf {} | sh -s -- -y --no-modify-path",
-        source.script_url()
-    )
+    let url = source.script_url();
+    let proto = if url.starts_with("http://") {
+        ""
+    } else {
+        "--proto '=https' --tlsv1.2 "
+    };
+    format!("curl {proto}-sSf {url} | sh -s -- -y --no-modify-path")
 }
 
 /// rustup 主目录：<root>/rustup
@@ -91,8 +95,14 @@ pub fn install_env_vars(source: RustSource, root: &Path) -> Vec<(String, String)
         ),
     ];
     if source == RustSource::Aliyun {
-        vars.push(("RUSTUP_UPDATE_ROOT".to_string(), ALIYUN_UPDATE_ROOT.to_string()));
-        vars.push(("RUSTUP_DIST_SERVER".to_string(), ALIYUN_DIST_SERVER.to_string()));
+        vars.push((
+            "RUSTUP_UPDATE_ROOT".to_string(),
+            ALIYUN_UPDATE_ROOT.to_string(),
+        ));
+        vars.push((
+            "RUSTUP_DIST_SERVER".to_string(),
+            ALIYUN_DIST_SERVER.to_string(),
+        ));
     }
     vars
 }
@@ -108,6 +118,61 @@ pub fn aliyun_env_vars() -> Vec<(&'static str, &'static str)> {
 /// 已安装检测：<root>/rustup 目录存在即视为已安装
 pub fn is_installed(root: &Path) -> bool {
     rustup_home_dir(root).exists()
+}
+
+/// 安装 Rust（rustup）：选择源 → 执行脚本 → 持久化环境变量与 PATH
+pub fn install(_hint: Option<&str>) -> Result<()> {
+    #[cfg(windows)]
+    {
+        return Err(anyhow::anyhow!(
+            "Windows 暂不支持自动安装 Rust，请手动运行 rustup-init.exe（https://rustup.rs）"
+        ));
+    }
+    #[cfg(not(windows))]
+    {
+        use crate::core::shell::{
+            inject_env_var, inject_path, print_activation_hint, rc_file_for_shell,
+        };
+
+        let paths = crate::core::paths::DevkitPaths::new()?;
+        let root = paths.root();
+        if is_installed(root) {
+            return Err(anyhow::anyhow!(
+                "Rust (rustup) 已安装于 {}，如需重装请先手动删除该目录与 rc 中相关注入",
+                rustup_home_dir(root).display()
+            ));
+        }
+        let source = RustSource::choose()?;
+        println!("开始安装 Rust（{}）...", source.label());
+        let status = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(install_command(source))
+            .envs(install_env_vars(source, root))
+            .status()?;
+        if !status.success() {
+            let code = status
+                .code()
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "信号终止".to_string());
+            return Err(anyhow::anyhow!("Rust 安装失败，退出码 {code}"));
+        }
+        // 持久化环境变量与 PATH（失败仅警告，不阻断已完成的安装）
+        let rc = rc_file_for_shell()?;
+        for (key, value) in install_env_vars(source, root) {
+            if let Err(e) = inject_env_var(&rc, &key, &value) {
+                eprintln!(
+                    "警告: 环境变量 {key} 写入 {} 失败: {e}，请手动配置",
+                    rc.display()
+                );
+            }
+        }
+        if let Err(e) = inject_path(&rc, &cargo_home_dir(root).join("bin")) {
+            eprintln!("警告: PATH 写入 {} 失败: {e}，请手动配置", rc.display());
+        }
+        println!("Rust (rustup) 安装完成（{}）", source.label());
+        print_activation_hint()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -137,10 +202,7 @@ mod tests {
     #[test]
     fn install_command_uses_script_override() {
         std::env::set_var("DEVKIT_RUSTUP_SCRIPT", "http://127.0.0.1:9/rustup-init.sh");
-        assert!(
-            install_command(RustSource::Official)
-                .contains("http://127.0.0.1:9/rustup-init.sh")
-        );
+        assert!(install_command(RustSource::Official).contains("http://127.0.0.1:9/rustup-init.sh"));
         std::env::remove_var("DEVKIT_RUSTUP_SCRIPT");
     }
 
@@ -149,7 +211,10 @@ mod tests {
         assert_eq!(
             aliyun_env_vars(),
             vec![
-                ("RUSTUP_UPDATE_ROOT", "https://mirrors.aliyun.com/rustup/rustup"),
+                (
+                    "RUSTUP_UPDATE_ROOT",
+                    "https://mirrors.aliyun.com/rustup/rustup"
+                ),
                 ("RUSTUP_DIST_SERVER", "https://mirrors.aliyun.com/rustup"),
             ]
         );
