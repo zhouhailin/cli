@@ -63,7 +63,9 @@ fn os_info_shows_images_table() {
         .stdout(predicate::str::contains("共 1 个镜像"))
         .stdout(predicate::str::contains("9(latest-aarch64-boot)"))
         .stdout(predicate::str::contains("1.4 GB"))
-        .stdout(predicate::str::contains("AlmaLinux-9-latest-aarch64-boot.iso"));
+        .stdout(predicate::str::contains(
+            "AlmaLinux-9-latest-aarch64-boot.iso",
+        ));
 }
 
 /// 双请求 mock：findByNameOrVersion → 镜像 JSON（downloadUrl 指向自身）；ISO 路径 → 二进制
@@ -105,7 +107,12 @@ fn os_download_with_version_downloads_file() {
         .unwrap()
         .env("DEVKIT_MIRROR_API", &base)
         .args([
-            "os", "download", "almalinux", "--version", "9(latest-aarch64-boot)", "-o",
+            "os",
+            "download",
+            "almalinux",
+            "--version",
+            "9(latest-aarch64-boot)",
+            "-o",
             out.to_str().unwrap(),
         ])
         .assert()
@@ -127,7 +134,12 @@ fn os_download_skips_existing_file_non_tty() {
         .unwrap()
         .env("DEVKIT_MIRROR_API", &base)
         .args([
-            "os", "download", "almalinux", "--version", "9(latest-aarch64-boot)", "-o",
+            "os",
+            "download",
+            "almalinux",
+            "--version",
+            "9(latest-aarch64-boot)",
+            "-o",
             dir.path().to_str().unwrap(),
         ])
         .assert()
