@@ -22,10 +22,21 @@ fn os_arch(platform: &Platform) -> (&'static str, &'static str) {
     (os, arch)
 }
 
+/// mvnd 版本列表（阿里云镜像目录页解析，纯数字稳定版）
+pub fn fetch_versions() -> Result<Vec<String>> {
+    let body = http_get_string(VERSIONS_URL)?;
+    crate::core::versions::parse_version_dirs(&body)
+}
+
+/// 从 archive 获取官方 SHA-256 校验值
+pub fn fetch_sha256(version: &str, platform: &Platform) -> Result<String> {
+    let sha_text = http_get_string(&sha256_url(version, platform))?;
+    parse_sha256_text(&sha_text)
+}
+
 pub fn install(version_hint: Option<&str>) -> Result<()> {
     let platform = Platform::detect();
-    let body = http_get_string(VERSIONS_URL)?;
-    let list = crate::core::versions::parse_version_dirs(&body)?;
+    let list = fetch_versions()?;
     let version = if let Some(hint) = version_hint {
         if !list.contains(&hint.to_string()) {
             return Err(anyhow!("版本 {hint} 不可用，请从列表中选择"));
@@ -41,8 +52,7 @@ pub fn install(version_hint: Option<&str>) -> Result<()> {
     };
     let url = resolve_url(&version, &platform);
     // 阿里云镜像未同步 .sha256 校验文件，校验文件仍从 archive 获取（小文件，保留完整性校验）
-    let sha_text = http_get_string(&sha256_url(&version, &platform))?;
-    let sha = parse_sha256_text(&sha_text)?;
+    let sha = fetch_sha256(&version, &platform)?;
     println!("准备安装 mvnd {version}...");
     println!("下载地址: {url}");
     if !confirm("确认开始下载安装？", true)? {

@@ -123,3 +123,43 @@ fn offline_install_non_tty_without_version_reports_hint() {
         .failure()
         .stderr(predicate::str::contains("请指定版本"));
 }
+
+#[test]
+fn download_command_rejects_offline_mode() {
+    let home = tempfile::tempdir().unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("HOME", home.path())
+        .env("DEVKIT_ROOT", home.path().join("devkit"))
+        .env("CLI_OFFLINE", "true")
+        .args(["download", "node", "v22.11.0"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("离线模式无法下载"));
+}
+
+#[test]
+fn download_command_non_tty_without_tool_reports_hint() {
+    let home = tempfile::tempdir().unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("HOME", home.path())
+        .env("DEVKIT_ROOT", home.path().join("devkit"))
+        .args(["download"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("请指定工具名"));
+}
+
+#[test]
+fn download_command_rejects_unknown_tool() {
+    let home = tempfile::tempdir().unwrap();
+    Command::cargo_bin("cli")
+        .unwrap()
+        .env("HOME", home.path())
+        .env("DEVKIT_ROOT", home.path().join("devkit"))
+        .args(["download", "rust"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("暂不支持下载 rust"));
+}

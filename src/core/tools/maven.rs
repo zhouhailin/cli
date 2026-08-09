@@ -16,6 +16,12 @@ pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
     crate::core::versions::compare(a, b)
 }
 
+/// maven 版本列表（Apache archive 目录页解析）
+pub fn fetch_versions() -> Result<Vec<String>> {
+    let body = http_get_string("https://archive.apache.org/dist/maven/maven-3/")?;
+    parse_maven_versions(&body)
+}
+
 /// maven 下载 URL
 pub fn resolve_url(version: &str) -> String {
     format!(
@@ -61,8 +67,7 @@ pub fn write_settings_with_backup(tool_dir: &Path, settings: &str) -> Result<boo
 }
 
 pub fn install(version_hint: Option<&str>) -> Result<()> {
-    let body = http_get_string("https://archive.apache.org/dist/maven/maven-3/")?;
-    let list = parse_maven_versions(&body)?;
+    let list = fetch_versions()?;
     let version = if let Some(hint) = version_hint {
         if !list.contains(&hint.to_string()) {
             return Err(anyhow!("版本 {hint} 不可用，请从列表中选择"));

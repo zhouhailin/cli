@@ -52,6 +52,13 @@ pub enum Command {
     },
     /// 自更新：检查并升级到 GitHub Releases 最新版
     Update,
+    /// 下载工具压缩包到本地缓存（离线部署预热，不安装）
+    Download {
+        /// 工具名（不填则交互选择）
+        tool: Option<String>,
+        /// 版本（不填则交互选择）
+        version: Option<String>,
+    },
     /// 操作系统镜像查询与下载（阿里云镜像）
     Os {
         #[command(subcommand)]
@@ -89,6 +96,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Use { tool, version } => commands::use_cmd::run(tool, version),
         Command::Uninstall { tool, version } => commands::uninstall::run(tool, version),
         Command::Update => commands::self_update::run(),
+        Command::Download { tool, version } => commands::download::run(tool, version),
         Command::Os { subcommand } => commands::os::run(subcommand),
     }
 }
