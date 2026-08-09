@@ -61,6 +61,8 @@ cli use java 21
 
 ## 命令详解
 
+所有子命令支持唯一前缀缩写（如 `cli i` 等价 `cli install`，`cli up` 等价 `cli update`）；前缀有歧义时（如 `cli u`）会报错，需补全命令名。
+
 ### `cli install [tool]`
 
 交互式安装工具，支持：`java`、`node`、`go`、`maven`、`mvnd`。
