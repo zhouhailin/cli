@@ -16,6 +16,7 @@
 - **跨平台**：macOS / Linux / Windows（x86_64 / aarch64）
 - **PATH 自动注入**：安装后自动写入 shell 配置文件（`.zshrc` / `.bashrc`）
 - **调试日志**：`CLI_DEBUG=true` 或 `DEVKIT_DEBUG=true` 输出完整下载安装过程
+- **help 系统信息**：`cli` 无参数或 help 时，在版本下方展示本机系统（macOS/Linux/Windows，麒麟系统含 SP/代号）
 - **系统镜像下载**：查询并下载阿里云镜像的 Linux ISO（9 个系统，交互选择版本）
 - **离线部署**：`CLI_OFFLINE=true` 时仅使用本地缓存安装，配合 `cli download` 预热可在内网/离线环境部署
 

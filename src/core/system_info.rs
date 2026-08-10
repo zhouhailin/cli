@@ -16,7 +16,9 @@ pub fn parse_productinfo(content: &str) -> String {
     let mut version: Option<String> = None;
     let mut marks: Vec<String> = Vec::new();
     for line in content.lines() {
-        let Some((k, v)) = line.split_once('=') else { continue };
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
         let v = v.trim().trim_matches('"').to_string();
         match k {
             "ProductName" => name = Some(v),
@@ -30,7 +32,9 @@ pub fn parse_productinfo(content: &str) -> String {
             _ => {}
         }
     }
-    let Some(name) = name else { return String::new() };
+    let Some(name) = name else {
+        return String::new();
+    };
     let mut out = name;
     if let Some(v) = version {
         out.push(' ');
@@ -48,7 +52,9 @@ pub fn parse_os_release(content: &str) -> String {
     let mut name: Option<String> = None;
     let mut version: Option<String> = None;
     for line in content.lines() {
-        let Some((k, v)) = line.split_once('=') else { continue };
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
         let v = v.trim().trim_matches('"').to_string();
         match k {
             "NAME" => name = Some(v),
@@ -83,13 +89,19 @@ pub fn parse_sw_vers(output: &str) -> String {
 
 /// 解析 Windows `ver` 输出（中文/英文），提取括号内版本号的前 3 段
 pub fn parse_ver_output(output: &str) -> String {
-    let Some(start) = output.find('[') else { return String::new() };
-    let Some(end) = output.find(']') else { return String::new() };
+    let Some(start) = output.find('[') else {
+        return String::new();
+    };
+    let Some(end) = output.find(']') else {
+        return String::new();
+    };
     if end <= start + 1 {
         return String::new();
     }
     let inner = &output[start + 1..end];
-    let Some(idx) = inner.find(|c: char| c.is_ascii_digit()) else { return String::new() };
+    let Some(idx) = inner.find(|c: char| c.is_ascii_digit()) else {
+        return String::new();
+    };
     let parts: Vec<&str> = inner[idx..].split('.').take(3).collect();
     if parts.len() < 3 {
         return String::new();
@@ -113,7 +125,11 @@ fn macos_display() -> String {
         Ok(out) if out.status.success() => {
             let text = String::from_utf8_lossy(&out.stdout);
             let s = parse_sw_vers(&text);
-            if s.is_empty() { "macOS".to_string() } else { s }
+            if s.is_empty() {
+                "macOS".to_string()
+            } else {
+                s
+            }
         }
         _ => "macOS".to_string(),
     }
@@ -140,14 +156,21 @@ fn linux_display() -> String {
 
 fn windows_display() -> String {
     #[cfg(windows)]
-    let out = std::process::Command::new("cmd").args(["/c", "ver"]).output();
+    let out = std::process::Command::new("cmd")
+        .args(["/c", "ver"])
+        .output();
     #[cfg(not(windows))]
-    let out: Result<std::process::Output, std::io::Error> = Err(std::io::Error::other("not windows"));
+    let out: Result<std::process::Output, std::io::Error> =
+        Err(std::io::Error::other("not windows"));
     match out {
         Ok(out) if out.status.success() => {
             let text = String::from_utf8_lossy(&out.stdout);
             let s = parse_ver_output(&text);
-            if s.is_empty() { "Windows".to_string() } else { s }
+            if s.is_empty() {
+                "Windows".to_string()
+            } else {
+                s
+            }
         }
         _ => "Windows".to_string(),
     }
@@ -155,7 +178,11 @@ fn windows_display() -> String {
 
 /// help「系统」行：`系统: {os_display} ({arch})`
 pub fn help_line() -> String {
-    format!("系统: {} ({})", os_display(), Platform::detect().arch_name())
+    format!(
+        "系统: {} ({})",
+        os_display(),
+        Platform::detect().arch_name()
+    )
 }
 
 #[cfg(test)]
