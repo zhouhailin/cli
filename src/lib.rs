@@ -114,7 +114,11 @@ pub fn render_top_help() -> String {
 /// 在「版本: {version}」行后插入系统信息行；找不到版本行时原样返回
 fn inject_system_line(help: &str) -> String {
     let version_line = format!("版本: {}", current_version());
-    let system_line = format!("{}\n{}", version_line, crate::core::system_info::help_line());
+    let system_line = format!(
+        "{}\n{}",
+        version_line,
+        crate::core::system_info::help_line()
+    );
     if help.contains(&version_line) {
         help.replacen(&version_line, &system_line, 1)
     } else {
@@ -196,7 +200,10 @@ mod tests {
     fn wants_top_level_help_false_for_other_args() {
         assert!(!wants_top_level_help(&["install".to_string()]));
         assert!(!wants_top_level_help(&["--version".to_string()]));
-        assert!(!wants_top_level_help(&["help".to_string(), "install".to_string()]));
+        assert!(!wants_top_level_help(&[
+            "help".to_string(),
+            "install".to_string()
+        ]));
     }
 
     #[test]
