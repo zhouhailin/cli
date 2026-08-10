@@ -10,5 +10,6 @@ pub mod offline;
 pub mod paths;
 pub mod platform;
 pub mod shell;
+pub mod system_info;
 pub mod tools;
 pub mod versions;
