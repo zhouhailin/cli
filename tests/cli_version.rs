@@ -31,6 +31,36 @@ fn no_args_prints_version_in_help() {
 }
 
 #[test]
+fn help_flag_shows_system_line() {
+    Command::cargo_bin("cli")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("系统: "))
+        .stdout(predicate::str::contains("x86_64").or(predicate::str::contains("aarch64")));
+}
+
+#[test]
+fn help_subcommand_shows_system_line() {
+    Command::cargo_bin("cli")
+        .unwrap()
+        .arg("help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("系统: "));
+}
+
+#[test]
+fn no_args_shows_system_line() {
+    Command::cargo_bin("cli")
+        .unwrap()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("系统: "));
+}
+
+#[test]
 fn version_shows_platform_and_root() {
     let dir = tempfile::tempdir().unwrap();
     // 平台字符串与 Platform::detect 一致，按编译目标动态构造，避免绑定具体平台

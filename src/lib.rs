@@ -1,7 +1,7 @@
 pub mod commands;
 pub mod core;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::core::versions::parse_tag;
 
@@ -101,6 +101,27 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
     }
 }
 
+/// 是否顶层 help 场景（无参数或 -h/--help/help）；`cli help <子命令>` 不拦截
+pub fn wants_top_level_help(args: &[String]) -> bool {
+    args.is_empty() || (args.len() == 1 && matches!(args[0].as_str(), "-h" | "--help" | "help"))
+}
+
+/// 顶层 help 文本：渲染 clap help 后在「版本」行后注入系统信息行
+pub fn render_top_help() -> String {
+    inject_system_line(&Cli::command().render_help().to_string())
+}
+
+/// 在「版本: {version}」行后插入系统信息行；找不到版本行时原样返回
+fn inject_system_line(help: &str) -> String {
+    let version_line = format!("版本: {}", current_version());
+    let system_line = format!("{}\n{}", version_line, crate::core::system_info::help_line());
+    if help.contains(&version_line) {
+        help.replacen(&version_line, &system_line, 1)
+    } else {
+        help.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,6 +182,43 @@ mod tests {
             Cli::try_parse_from(["cli", "use"]).unwrap().command,
             Command::Use { .. }
         ));
+    }
+
+    #[test]
+    fn wants_top_level_help_true_for_empty() {
+        assert!(wants_top_level_help(&[]));
+        assert!(wants_top_level_help(&["-h".to_string()]));
+        assert!(wants_top_level_help(&["--help".to_string()]));
+        assert!(wants_top_level_help(&["help".to_string()]));
+    }
+
+    #[test]
+    fn wants_top_level_help_false_for_other_args() {
+        assert!(!wants_top_level_help(&["install".to_string()]));
+        assert!(!wants_top_level_help(&["--version".to_string()]));
+        assert!(!wants_top_level_help(&["help".to_string(), "install".to_string()]));
+    }
+
+    #[test]
+    fn inject_system_line_inserts_after_version_line() {
+        let version_line = format!("版本: {}", current_version());
+        let help = format!("跨平台开发环境一键安装工具\n{version_line}\n\nUsage: cli <COMMAND>\n");
+        let out = inject_system_line(&help);
+        assert!(out.contains(&format!("{version_line}\n系统: ")));
+        assert!(out.contains("\n\nUsage: cli <COMMAND>"));
+    }
+
+    #[test]
+    fn inject_system_line_unchanged_without_version_line() {
+        let help = "Usage: cli <COMMAND>\n";
+        assert_eq!(inject_system_line(help), help);
+    }
+
+    #[test]
+    fn render_top_help_contains_version_and_system() {
+        let help = render_top_help();
+        assert!(help.contains("版本:"));
+        assert!(help.contains("系统: "));
     }
 
     #[test]
