@@ -6,7 +6,7 @@ use crate::core::interact::{confirm, select};
 use crate::core::platform::Platform;
 use crate::core::shell::{inject_path, rc_file_for_shell};
 
-/// 解析 go.dev/dl/?mode=json：stable 且含当前平台文件，版本降序（最新在前）
+/// 解析 go.p2hp.com/go.dev/dl/?mode=json：stable 且含当前平台文件，版本降序（最新在前）
 pub fn parse_go_versions(json: &str, platform: &Platform) -> Result<Vec<String>> {
     #[derive(serde::Deserialize)]
     struct GoRelease {
@@ -49,7 +49,7 @@ pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 pub fn fetch_versions(platform: &Platform) -> Result<Vec<String>> {
-    let body = http_get_string("https://go.dev/dl/?mode=json")?;
+    let body = http_get_string("https://go.p2hp.com/go.dev/dl/?mode=json")?;
     parse_go_versions(&body, platform)
 }
 
