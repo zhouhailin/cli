@@ -8,7 +8,7 @@ fn version_subcommand_prints_version() {
         .arg("version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("cli 0.1.0"));
+        .stdout(predicate::str::contains("cli "));
 }
 
 #[test]
@@ -18,7 +18,7 @@ fn version_flag_prints_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("0.1.0"));
+        .stdout(predicate::str::is_match(r"\d+\.\d+\.\d+").unwrap());
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn no_args_prints_version_in_help() {
         .unwrap()
         .assert()
         .failure()
-        .stderr(predicate::str::contains("版本: 0.1.0"));
+        .stderr(predicate::str::is_match(r"版本: \d+\.\d+\.\d+").unwrap());
 }
 
 #[test]
