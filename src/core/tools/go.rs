@@ -40,7 +40,21 @@ pub fn parse_go_versions(json: &str, platform: &Platform) -> Result<Vec<String>>
         .map(|r| r.version.trim_start_matches("go").to_string())
         .collect();
     versions.sort_by(|a, b| compare_versions(b, a));
-    Ok(versions)
+    // 每个 major.minor 只保留最新 patch
+    let mut seen_minor = std::collections::HashSet::new();
+    let mut deduped = Vec::new();
+    for v in &versions {
+        let parts: Vec<&str> = v.splitn(3, '.').collect();
+        let key = if parts.len() >= 2 {
+            format!("{}.{}", parts[0], parts[1])
+        } else {
+            v.clone()
+        };
+        if seen_minor.insert(key) {
+            deduped.push(v.clone());
+        }
+    }
+    Ok(deduped)
 }
 
 /// 版本号比较（点分段数字），供 maven 等模块复用
@@ -128,8 +142,23 @@ mod tests {
           {"version":"go1.21.9","stable":true,"files":[{"filename":"go1.21.9.darwin-arm64.tar.gz"}]}
         ]"#;
         let list = parse_go_versions(json, &mac_arm()).unwrap();
-        // 1.22.6 无 mac 文件被过滤；1.22.5 非 stable 被过滤；降序
-        assert_eq!(list, vec!["1.23.0", "1.21.13", "1.21.9"]);
+        // 1.22.6 无 mac 文件被过滤；1.22.5 非 stable 被过滤；1.21.9 被 major.minor 去重
+        assert_eq!(list, vec!["1.23.0", "1.21.13"]);
+    }
+
+    #[test]
+    fn parse_go_versions_dedup_keeps_latest_patch_per_minor() {
+        let json = r#"[
+          {"version":"go1.24.6","stable":true,"files":[{"filename":"go1.24.6.darwin-arm64.tar.gz"}]},
+          {"version":"go1.24.5","stable":true,"files":[{"filename":"go1.24.5.darwin-arm64.tar.gz"}]},
+          {"version":"go1.24.4","stable":true,"files":[{"filename":"go1.24.4.darwin-arm64.tar.gz"}]},
+          {"version":"go1.23.12","stable":true,"files":[{"filename":"go1.23.12.darwin-arm64.tar.gz"}]},
+          {"version":"go1.23.11","stable":true,"files":[{"filename":"go1.23.11.darwin-arm64.tar.gz"}]},
+          {"version":"go1.22.6","stable":true,"files":[{"filename":"go1.22.6.darwin-arm64.tar.gz"}]}
+        ]"#;
+        let list = parse_go_versions(json, &mac_arm()).unwrap();
+        // 每个 major.minor 只保留最新 patch
+        assert_eq!(list, vec!["1.24.6", "1.23.12", "1.22.6"]);
     }
 
     #[test]
