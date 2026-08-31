@@ -490,14 +490,9 @@ pub fn install(vendor_hint: Option<&str>, version_hint: Option<&str>) -> Result<
     }
     let mut ctx = InstallContext::load()?;
     install_archive(&url, sha256.as_deref(), "java", &version, &mut ctx, false)?;
-    // JAVA_HOME 注入（指向 current 链）
+    // JAVA_HOME 注入（指向 current 链，使用 paths 统一解析以保证 Linux/macOS/Windows 路径一致）
     let rc_file = rc_file_for_shell()?;
-    let home = std::env::var("HOME").unwrap_or_default();
-    let java_home = if home.is_empty() {
-        ctx.paths.current_link("java").to_string_lossy().to_string()
-    } else {
-        format!("{home}/.devkit/current/java")
-    };
+    let java_home = ctx.paths.current_link("java").to_string_lossy().to_string();
     inject_env_var(&rc_file, "JAVA_HOME", &java_home)?;
     inject_path(&rc_file, &ctx.paths.current_link("java").join("bin"))?;
     crate::core::shell::print_activation_hint()?;
